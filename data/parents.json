@@ -1,0 +1,76 @@
+[
+  {
+    "id": "parent-1793084118019-581",
+    "fullName": "Barrister Femi & Dr. Funke Ogundimu",
+    "phone": "+234 805 123 4567",
+    "email": "ogundimu.law@gmail.com",
+    "password": "ogundimu2026",
+    "wardIds": [
+      "stu-1"
+    ],
+    "childrenIds": [
+      "stu-1"
+    ],
+    "wardNames": [
+      "Tiwa Adeleke"
+    ],
+    "relationship": "Both Parents",
+    "address": "Jericho GRA, Ibadan",
+    "securityQuestion": "What city was your first child born in?",
+    "securityAnswer": "Ibadan",
+    "occupation": "Legal Practitioner & Medical Consultant",
+    "savedOnline": true,
+    "createdAt": "2026-10-27T06:55:18.019Z",
+    "updatedAt": "2026-10-27T06:55:18.019Z"
+  },
+  {
+    "id": "parent-1",
+    "fullName": "Chief & Mrs. Adebayo Adeleke",
+    "phone": "+234 803 445 6789",
+    "email": "adeleke.family@gmail.com",
+    "password": "parent2025",
+    "wardIds": [
+      "stu-1"
+    ],
+    "wardNames": [
+      "Tiwa Adeleke"
+    ],
+    "relationship": "Father & Mother",
+    "address": "Bodija Estate, Ibadan",
+    "savedOnline": true,
+    "createdAt": "2026-10-23T05:55:06.578Z"
+  },
+  {
+    "id": "parent-2",
+    "fullName": "Engr. & Dr. Akindele",
+    "phone": "+234 802 887 6543",
+    "email": "akindele.eng@yahoo.com",
+    "password": "parent2025",
+    "wardIds": [
+      "stu-2"
+    ],
+    "wardNames": [
+      "Babatunde Akindele"
+    ],
+    "relationship": "Parents",
+    "address": "Oluyole Estate, Ibadan",
+    "savedOnline": true,
+    "createdAt": "2026-10-23T05:55:06.578Z"
+  },
+  {
+    "id": "parent-1792735206694-237",
+    "fullName": "Parent / Guardian",
+    "phone": "+234 800 000 0000",
+    "email": "",
+    "password": "parent2025",
+    "wardIds": [
+      "stu-online-1792735206693-872"
+    ],
+    "wardNames": [
+      "Oluwaseun Bakare"
+    ],
+    "relationship": "Parent / Guardian",
+    "savedOnline": true,
+    "createdAt": "2026-10-23T06:00:06.694Z"
+  }
+]

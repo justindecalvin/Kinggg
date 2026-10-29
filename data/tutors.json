@@ -1,0 +1,135 @@
+[
+  {
+    "id": "tut-1792735221861-553",
+    "staffId": "STX/FAC/006",
+    "name": "Dr. Rasheed Alimi",
+    "email": "rasheed.alimi@stanbaxschools.edu.ng",
+    "password": "stanbax2025",
+    "department": "Sciences & STEM",
+    "role": "Subject Teacher",
+    "qualification": "B.Sc / B.Ed, TRCN Certified",
+    "assignedClasses": [],
+    "assignedSubjects": [],
+    "phone": "+234 803 000 0000",
+    "bio": "",
+    "profileCompleted": true,
+    "isUpgraded": false,
+    "savedOnline": true,
+    "createdAt": "2026-10-23T06:00:21.861Z"
+  },
+  {
+    "id": "tut-1",
+    "staffId": "STX/FAC/001",
+    "name": "Mr. Olumide Ogunleye",
+    "email": "olumide.ogunleye@stanbaxschools.edu.ng",
+    "password": "stanbax2025",
+    "role": "Senior Science Master & Class Teacher",
+    "department": "Sciences & STEM",
+    "qualification": "B.Sc. (Ed) Physics, M.Ed Educational Measurement (University of Ibadan)",
+    "phone": "+234 805 554 4321",
+    "bio": "Passionate STEM educator with over 14 years preparing students for national and international science olympiads.",
+    "assignedClasses": [
+      "SSS 2 Science",
+      "SSS 1 Science"
+    ],
+    "assignedSubjects": [
+      "Physics",
+      "Mathematics",
+      "Computer Studies / Coding"
+    ],
+    "profileCompleted": true,
+    "isUpgraded": false,
+    "savedOnline": true
+  },
+  {
+    "id": "tut-2",
+    "staffId": "STX/FAC/002",
+    "name": "Mrs. Folake Adeyemi",
+    "email": "folake.adeyemi@stanbaxschools.edu.ng",
+    "password": "stanbax2025",
+    "role": "Head of Languages & JSS 1 Class Teacher",
+    "department": "Languages & Humanities",
+    "qualification": "B.A. English (Obafemi Awolowo University), TRCN Certified",
+    "phone": "+234 802 334 1122",
+    "bio": "Literature and language coach, mentoring debate champions across southwest Nigeria.",
+    "assignedClasses": [
+      "JSS 1",
+      "JSS 2"
+    ],
+    "assignedSubjects": [
+      "English Language",
+      "Literature-in-English"
+    ],
+    "profileCompleted": true,
+    "isUpgraded": false,
+    "savedOnline": true
+  },
+  {
+    "id": "tut-3",
+    "staffId": "STX/FAC/003",
+    "name": "Dr. Chukwuemeka Obi",
+    "email": "chukwuemeka.obi@stanbaxschools.edu.ng",
+    "password": "stanbax2025",
+    "role": "Senior Chemistry Master",
+    "department": "Sciences & STEM",
+    "qualification": "Ph.D Organic Chemistry (University of Lagos)",
+    "phone": "+234 803 776 5544",
+    "bio": "Published author in chemical education, leading practical lab demonstrations.",
+    "assignedClasses": [
+      "SSS 3 Science",
+      "SSS 2 Science"
+    ],
+    "assignedSubjects": [
+      "Chemistry"
+    ],
+    "profileCompleted": true,
+    "isUpgraded": false,
+    "savedOnline": true
+  },
+  {
+    "id": "tut-4",
+    "staffId": "STX/FAC/004",
+    "name": "Mr. Daniel Adeleke",
+    "email": "daniel.adeleke@stanbaxschools.edu.ng",
+    "password": "stanbax2025",
+    "role": "Head of Mathematics & Computational Logic",
+    "department": "Mathematics & Logic",
+    "qualification": "B.Sc Mathematics (University of Ilorin)",
+    "phone": "+234 806 889 2211",
+    "bio": "Olympiad mathematics trainer and specialist in Cambridge IGCSE Math curriculum.",
+    "assignedClasses": [
+      "SSS 3 Science",
+      "SSS 3 Commercial"
+    ],
+    "assignedSubjects": [
+      "Further Mathematics",
+      "General Mathematics"
+    ],
+    "profileCompleted": true,
+    "isUpgraded": false,
+    "savedOnline": true
+  },
+  {
+    "id": "tut-5",
+    "staffId": "STX/FAC/005",
+    "name": "Mrs. Kemi Balogun",
+    "email": "kemi.balogun@stanbaxschools.edu.ng",
+    "password": "stanbax2025",
+    "role": "Head of Vocational & Business Studies",
+    "department": "Commercial & Vocational Arts",
+    "qualification": "B.Sc Accounting, TRCN Certified",
+    "phone": "+234 807 443 9988",
+    "bio": "Guiding scholars into foundational entrepreneurship, economics, and financial literacy.",
+    "assignedClasses": [
+      "SSS 2 Commercial",
+      "SSS 1 Commercial"
+    ],
+    "assignedSubjects": [
+      "Economics",
+      "Financial Accounting"
+    ],
+    "profileCompleted": true,
+    "isUpgraded": false,
+    "savedOnline": true
+  }
+]

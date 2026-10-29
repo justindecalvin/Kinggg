@@ -1,0 +1,6 @@
+{
+  "name": "Stanbax Schools Ibadan",
+  "description": "Official portal and learning platform for Stanbax Schools Ibadan, featuring academic programs, faculty, student testimonials, and admissions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,33 @@
+[
+  {
+    "id": "mod-1792735232826-209",
+    "name": "Hajia Aisha Gambo",
+    "email": "aisha.gambo@stanbaxschools.edu.ng",
+    "password": "Moderator2025!",
+    "phone": "+234 800 000 0000",
+    "roleTitle": "Community Moderator",
+    "assignedSections": [
+      "School Live Chat",
+      "Visitor Desk",
+      "Broadcasts & Gallery"
+    ],
+    "status": "Active",
+    "savedOnline": true,
+    "createdAt": "2026-10-23T06:00:32.826Z"
+  },
+  {
+    "id": "mod-1",
+    "name": "Mr. Kehinde Badmus",
+    "email": "moderator@stanbaxschools.edu.ng",
+    "password": "Moderator2025!",
+    "phone": "+234 802 345 6789",
+    "roleTitle": "Chief Community & Communications Moderator",
+    "assignedSections": [
+      "School Live Chat",
+      "Visitor Desk",
+      "Broadcasts & Gallery"
+    ],
+    "status": "Active",
+    "savedOnline": true
+  }
+]
