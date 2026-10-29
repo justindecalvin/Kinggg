@@ -1,11 +1,10 @@
 [build]
   command = "node ensure-entry.cjs && npm run build"
-  publish = "dist"
+  publish = "recovered-site"
 
 
 [build.environment]
-  NODE_VERSION = "20"
-  NPM_FLAGS = "--legacy-peer-deps"
+  NODE_VERSION = "22"
 
 [[redirects]]
   from = "/*"
