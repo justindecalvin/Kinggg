@@ -52,7 +52,7 @@ import { AdminVisitorInquiriesSubTab } from './admin/AdminVisitorInquiriesSubTab
 import { AdminRolePrivilegesTab } from './admin/AdminRolePrivilegesTab';
 import { AdminContributorsTab } from './admin/AdminContributorsTab';
 import { AdminWaecRegistrationTab } from './admin/AdminWaecRegistrationTab';
-import { FastClassScoreEntry } from './tutor/FastClassScoreEntry';
+import { BatchResultsUploadModal } from './admin/BatchResultsUploadModal';
 import { AdminQuickAddStudentModal } from './admin/AdminQuickAddStudentModal';
 import { AdminFamilyLinkageModal } from './admin/AdminFamilyLinkageModal';
 import { AdminDownloadStudentLoginsModal } from './admin/AdminDownloadStudentLoginsModal';
@@ -852,7 +852,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToWebsite }) => 
 
           {activeTab === 'fast_scores' && (
             <div className="space-y-6">
-              <FastClassScoreEntry />
+              <BatchResultsUploadModal onClose={() => setActiveTab('overview')} />
             </div>
           )}
           {activeTab === 'family_linkage' && (
