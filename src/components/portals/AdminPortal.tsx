@@ -62,7 +62,7 @@ import { SchoolPrefectBadgesModal } from '../chat/ChatLeadershipModals';
 import { NetlifyCloudSyncModal } from './admin/NetlifyCloudSyncModal';
 import { StudentRosterDirectoryModal } from '../StudentRosterDirectoryModal';
 import { isRemoteEnabled } from '../../lib/supabase';
-import { Newspaper, Compass, Database, HeartHandshake, ClipboardCheck } from 'lucide-react';
+import { Newspaper, Compass, Database, HeartHandshake, ClipboardCheck, UploadCloud } from 'lucide-react';
 
 interface AdminPortalProps {
   onBackToWebsite: () => void;
@@ -936,6 +936,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToWebsite }) => 
         isOpen={showThemeModal}
         onClose={() => setShowThemeModal(false)}
       />
+      <button
+        type="button"
+        onClick={() => {
+          setActiveTab('fast_scores');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        className="fixed bottom-5 right-20 z-[60] inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3.5 py-3 text-xs font-black text-white shadow-xl ring-4 ring-white/80 transition hover:bg-emerald-700 hover:scale-105 active:scale-95 sm:right-24 sm:px-4"
+        title="Open Bulk Results Upload"
+        aria-label="Open Bulk Results Upload"
+      >
+        <UploadCloud className="h-4 w-4 shrink-0" />
+        <span>Bulk Upload</span>
+      </button>
     </div>
   );
 };
