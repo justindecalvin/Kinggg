@@ -5,13 +5,18 @@ const assert = require('node:assert/strict');
 const site = path.resolve(__dirname, '../recovered-site');
 const html = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
 const bulkImport = fs.readFileSync(path.join(site, 'bulk-results-import.html'), 'utf8');
+const configFunction = fs.readFileSync(path.resolve(__dirname, '../functions/api/config.js'), 'utf8');
 const landingSyncSql = fs.readFileSync(path.resolve(__dirname, '../supabase/landing_page_sync.sql'), 'utf8');
 const subjectCatalogSql = fs.readFileSync(path.resolve(__dirname, '../supabase/subjects_catalog_sync.sql'), 'utf8');
 assert(html.includes('id="root"'), 'The archived application entry point is missing.');
 assert(!html.includes('/src/main.tsx'), 'The entry point must reference compiled JavaScript.');
 assert(!html.includes('bulk-results-import.html') && !html.includes('Bulk Results Import'), 'The public homepage must not expose the bulk-results importer.');
-const appScript = html.match(/src=["'](\/[^"']+\.js)["']/)?.[1];
+const appScript = html.match(/import\(["'](\/[^"']+\.js)["']\)/)?.[1]
+  || html.match(/src=["'](\/[^"']+\.js)["']/)?.[1];
 assert(appScript, 'The compiled application script is missing.');
+assert(html.includes('fetch("/api/config"') && html.includes('/rest/v1/school_state?select=key,data'), 'Shared Supabase config and state must load before the app bundle.');
+assert(html.includes('window.setInterval(refreshSharedState, 15000)') && html.includes('new StorageEvent("storage"'), 'Open browsers must periodically receive remote state changes.');
+assert(configFunction.includes('env.SUPABASE_URL') && configFunction.includes('env.SUPABASE_ANON_KEY'), 'The Pages config Function must provide the shared Supabase connection.');
 const appBundle = fs.readFileSync(path.resolve(site, appScript.slice(1)), 'utf8');
 assert(appBundle.includes('Bulk Results Import / Fast Score Entry'), 'The admin portal results importer entry is missing.');
 assert(appBundle.includes('h(`enter_edit_grades`)||h(`collate_publish_results`)'), 'The importer must be visible to admins authorized to edit or publish results.');
@@ -44,6 +49,7 @@ for (const match of html.matchAll(/(?:src|href)=["'](\/[^"']+)["']/g)) {
   assert(fs.statSync(target).size > 0, 'An entry-point asset is empty.');
   checked++;
 }
-assert(checked >= 2, 'The compiled JavaScript and stylesheet must both be present.');
+assert(checked >= 1 && html.includes('index-23TSc5vC.css'), 'The stylesheet asset must be present.');
+assert(fs.statSync(path.resolve(site, appScript.slice(1))).size > 0, 'The compiled JavaScript asset must be present.');
 assert(fs.readFileSync(path.join(site, '_redirects'), 'utf8').includes('/index.html'), 'SPA fallback is missing.');
 console.log(`Archived website verified: ${checked} entry-point assets, SPA routing, admin-only results import, and 34-subject catalog sync.`);

@@ -12,7 +12,99 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Nunito:wght@600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-oJXusYPh.js"></script>
+    <script type="module">
+      const URL_KEY = "stanbax_supabase_url";
+      const ANON_KEY = "stanbax_supabase_anon_key";
+      let sharedConfig = null;
+
+      try {
+        const response = await fetch("/api/config", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+        if (response.ok) sharedConfig = await response.json();
+      } catch (error) {
+        console.warn("[Cloud Sync] Could not load shared configuration:", error);
+      }
+
+      const url = String(sharedConfig?.url || localStorage.getItem(URL_KEY) || "").trim().replace(/\/+$/, "");
+      const anonKey = String(sharedConfig?.anonKey || localStorage.getItem(ANON_KEY) || "").trim();
+      const lastLocalWrite = new Map();
+      const originalSetItem = localStorage.setItem.bind(localStorage);
+      localStorage.setItem = (key, value) => {
+        lastLocalWrite.set(key, Date.now());
+        originalSetItem(key, value);
+      };
+
+      if (url && anonKey) {
+        localStorage.setItem(URL_KEY, url);
+        localStorage.setItem(ANON_KEY, anonKey);
+        try {
+          const headers = {
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`,
+          };
+          const sessionToken = localStorage.getItem("stanbax_db_session");
+          if (sessionToken) headers["x-stanbax-session"] = sessionToken;
+          const response = await fetch(`${url}/rest/v1/school_state?select=key,data`, {
+            headers,
+            cache: "no-store",
+            signal: AbortSignal.timeout(8000),
+          });
+          if (response.ok) {
+            const rows = await response.json();
+            for (const row of rows) {
+              if (row && typeof row.key === "string" && row.data !== null && row.data !== undefined) {
+                localStorage.setItem(row.key, JSON.stringify(row.data));
+              }
+            }
+          } else {
+            console.warn("[Cloud Sync] Shared state read failed:", response.status);
+          }
+        } catch (error) {
+          console.warn("[Cloud Sync] Shared state could not be loaded:", error);
+        }
+      }
+
+      await import("/assets/index-oJXusYPh.js");
+
+      const refreshSharedState = async () => {
+        if (!url || !anonKey) return;
+        try {
+          const headers = {
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`,
+          };
+          const sessionToken = localStorage.getItem("stanbax_db_session");
+          if (sessionToken) headers["x-stanbax-session"] = sessionToken;
+          const response = await fetch(`${url}/rest/v1/school_state?select=key,data`, {
+            headers,
+            cache: "no-store",
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!response.ok) return;
+          const rows = await response.json();
+          for (const row of rows) {
+            if (!row || typeof row.key !== "string" || row.data === null || row.data === undefined) continue;
+            const nextValue = JSON.stringify(row.data);
+            const oldValue = localStorage.getItem(row.key);
+            if (oldValue === nextValue) continue;
+            if (Date.now() - (lastLocalWrite.get(row.key) || 0) < 12000) continue;
+            originalSetItem(row.key, nextValue);
+            window.dispatchEvent(new StorageEvent("storage", {
+              key: row.key,
+              oldValue,
+              newValue: nextValue,
+              storageArea: localStorage,
+              url: window.location.href,
+            }));
+            window.dispatchEvent(new CustomEvent("stanbax_cloud_state_changed", {
+              detail: { key: row.key, data: row.data },
+            }));
+          }
+        } catch (error) {
+          console.warn("[Cloud Sync] Periodic state refresh failed:", error);
+        }
+      };
+      window.setInterval(refreshSharedState, 15000);
+    </script>
     <link rel="stylesheet" crossorigin href="/assets/index-23TSc5vC.css">
   </head>
   <body class="bg-slate-50 text-slate-800 antialiased selection:bg-blue-600 selection:text-white">
