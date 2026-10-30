@@ -2129,12 +2129,68 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // 5. Subjects & Curriculum
-  const normalizeSubject = (s: Subject): Subject => ({
-    ...s,
-    applicableCategories: s.applicableCategories || (s.applicableLevels as any) || ['Senior Secondary'],
-    applicableLevels: s.applicableLevels || (s.applicableCategories as any) || ['Senior Secondary'],
-    description: s.description || ''
-  });
+  const normalizeSubject = (s: Subject): Subject => {
+    // The editor writes applicableLevels, while older records may also carry
+    // applicableCategories. Keep both aliases identical so every portal sees edits.
+    const rawLevels = Array.isArray(s.applicableLevels)
+      ? s.applicableLevels
+      : Array.isArray(s.applicableCategories)
+        ? s.applicableCategories
+        : ['Senior Secondary'];
+    const levels = Array.from(new Set(rawLevels
+      .filter((level): level is string => typeof level === 'string')
+      .map(level => level.trim())
+      .filter(Boolean)));
+    return {
+      ...s,
+      applicableCategories: levels,
+      applicableLevels: [...levels],
+      description: s.description || '',
+    };
+  };
+
+  const mergeSubjectUpdate = (current: Subject, updates: Partial<Subject>): Subject => {
+    const merged = { ...current, ...updates };
+    const editedLevels = Array.isArray(updates.applicableLevels)
+      ? updates.applicableLevels
+      : Array.isArray(updates.applicableCategories)
+        ? updates.applicableCategories
+        : undefined;
+    if (editedLevels) {
+      merged.applicableLevels = editedLevels;
+      merged.applicableCategories = editedLevels;
+    }
+    return normalizeSubject(merged);
+  };
+
+  const normalizeSubjectCatalog = (items: Subject[]): Subject[] => {
+    const byName = new Map<string, Subject>();
+    items.forEach(item => {
+      if (!item?.name?.trim()) return;
+      const normalized = normalizeSubject({ ...item, name: item.name.trim() });
+      const key = normalized.name.toLowerCase();
+      const existing = byName.get(key);
+      if (!existing) {
+        byName.set(key, normalized);
+        return;
+      }
+      const levels = Array.from(new Set([
+        ...(existing.applicableLevels || []),
+        ...(normalized.applicableLevels || []),
+      ]));
+      byName.set(key, normalizeSubject({
+        ...existing,
+        ...normalized,
+        id: existing.id,
+        code: normalized.code || existing.code,
+        department: normalized.department || existing.department,
+        description: normalized.description || existing.description,
+        applicableLevels: levels,
+        applicableCategories: levels,
+      }));
+    });
+    return Array.from(byName.values());
+  };
 
   const [subjects, setSubjects] = useState<Subject[]>(() => {
     try {
@@ -2161,7 +2217,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const updated = exists
         ? prev.map(s =>
             s.name.trim().toLowerCase() === newSubject.name.trim().toLowerCase()
-              ? normalizeSubject({ ...s, ...subjData })
+              ? mergeSubjectUpdate(s, subjData)
               : s
           )
         : [...prev, newSubject];
@@ -2181,7 +2237,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const updateSubject = (id: string, updatedData: Partial<Subject>) => {
     setSubjects(prev => {
-      const updated = prev.map(s => s.id === id ? normalizeSubject({ ...s, ...updatedData }) : s);
+      const updated = prev.map(s => s.id === id ? mergeSubjectUpdate(s, updatedData) : s);
       try {
         localStorage.setItem('stanbax_subjects', JSON.stringify(updated));
       } catch {}
@@ -11320,20 +11376,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
 
             if (Array.isArray(data.subjects) && data.subjects.length > 0) {
+              const normalized = normalizeSubjectCatalog(data.subjects);
               setSubjects(prev => {
-                const seen = new Map<string, Subject>();
-                prev.forEach(s => { if (s?.name) seen.set(s.name.trim().toLowerCase(), s); });
-                let added = false;
-                data.subjects.forEach((s: Subject) => {
-                  if (s?.name && !seen.has(s.name.trim().toLowerCase())) {
-                    seen.set(s.name.trim().toLowerCase(), normalizeSubject(s));
-                    added = true;
-                  }
-                });
-                if (!added) return prev;
-                const merged = Array.from(seen.values());
-                try { localStorage.setItem('stanbax_subjects', JSON.stringify(merged)); } catch {}
-                return merged;
+                if (JSON.stringify(prev) === JSON.stringify(normalized)) return prev;
+                setLocalStorageSilent('stanbax_subjects', JSON.stringify(normalized));
+                return normalized;
               });
             }
 
@@ -11512,20 +11559,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           // Only apply cloud students/subjects/assessmentConfig if there is no recent local mutation in the last 8s
           if (!hasPendingRemoteWrites() && Date.now() - lastLocalMutationAt >= 8000) {
             if (Array.isArray(liveCloud.subjects) && liveCloud.subjects.length > 0) {
+              const normalized = normalizeSubjectCatalog(liveCloud.subjects);
               setSubjects(prev => {
-                const seen = new Map<string, Subject>();
-                prev.forEach(s => { if (s?.name) seen.set(s.name.trim().toLowerCase(), s); });
-                let added = false;
-                liveCloud.subjects!.forEach((s: Subject) => {
-                  if (s?.name && !seen.has(s.name.trim().toLowerCase())) {
-                    seen.set(s.name.trim().toLowerCase(), normalizeSubject(s));
-                    added = true;
-                  }
-                });
-                if (!added) return prev;
-                const merged = Array.from(seen.values());
-                setLocalStorageSilent('stanbax_subjects', JSON.stringify(merged));
-                return merged;
+                if (JSON.stringify(prev) === JSON.stringify(normalized)) return prev;
+                setLocalStorageSilent('stanbax_subjects', JSON.stringify(normalized));
+                return normalized;
               });
             }
 
