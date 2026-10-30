@@ -401,16 +401,74 @@
         });
         renderAdminFields();
       };
+      const passwordChangeControlId = "stanbax-admin-force-password-change";
+      const installAdminPasswordChangeControl = () => {
+        let button = document.getElementById(passwordChangeControlId);
+        if (!adminCanManageSummary()) {
+          button?.remove();
+          return;
+        }
+        if (button?.isConnected) return;
+
+        button = document.createElement("button");
+        button.id = passwordChangeControlId;
+        button.type = "button";
+        button.textContent = "Require password change";
+        button.setAttribute("aria-label", "Require a student's password to be changed at next sign-in");
+        button.title = "Require a selected student to change password at their next sign-in";
+        button.style.cssText = "position:fixed;left:16px;bottom:76px;z-index:10050;border:1px solid #fbbf24;border-radius:999px;padding:11px 15px;background:#b91c1c;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 8px 24px #0f172a44;cursor:pointer;";
+        button.addEventListener("click", async () => {
+          const identifier = window.prompt("Enter the student's exact registration number, login ID, or Student ID:");
+          const cleanIdentifier = identifier?.trim();
+          if (!cleanIdentifier) return;
+          if (!window.confirm(`Require ${cleanIdentifier} to set a new password at their next sign-in?`)) return;
+
+          const token = localStorage.getItem("stanbax_db_session") || sessionStorage.getItem("stanbax_db_session");
+          if (!url || !anonKey || !token) {
+            window.alert("A Supabase admin session is required. Sign out and back into the Admin Portal, then try again.");
+            return;
+          }
+
+          button.disabled = true;
+          button.textContent = "Saving to Supabase…";
+          try {
+            const response = await fetch(`${url}/rest/v1/rpc/admin_require_student_password_change`, {
+              method: "POST",
+              headers: authHeaders(token),
+              body: JSON.stringify({ p_identifier: cleanIdentifier }),
+              cache: "no-store",
+              signal: AbortSignal.timeout(12000),
+            });
+            const result = await response.json().catch(() => null);
+            if (!response.ok || result?.ok !== true) {
+              throw new Error(result?.message || `Supabase request failed (HTTP ${response.status}).`);
+            }
+            await refreshSharedState();
+            window.alert(`${result.message || "The password change is required at next sign-in."}\nStudent: ${result.identifier || cleanIdentifier}`);
+          } catch (error) {
+            window.alert(`Could not update Supabase: ${error?.message || "Connection failed."}\nRun admin_force_student_password_change.sql in the Supabase SQL Editor if this RPC is not installed.`);
+          } finally {
+            button.disabled = false;
+            button.textContent = "Require password change";
+          }
+        });
+        document.body.append(button);
+      };
       const summaryObserver = new MutationObserver(() => {
         applySummaryPreferences();
         installAdminSummaryControl();
+        installAdminPasswordChangeControl();
       });
       summaryObserver.observe(document.getElementById("root") || document.body, { childList: true, subtree: true });
       window.addEventListener("storage", event => {
         if (event.key === summaryStateKey) applySummaryPreferences();
-        if (event.key === "stanbax_admin_auth" || event.key === "stanbax_proprietress_auth") installAdminSummaryControl();
+        if (event.key === "stanbax_admin_auth" || event.key === "stanbax_proprietress_auth") {
+          installAdminSummaryControl();
+          installAdminPasswordChangeControl();
+        }
       });
       installAdminSummaryControl();
+      installAdminPasswordChangeControl();
       applySummaryPreferences();
 
       const refreshSharedState = async () => {

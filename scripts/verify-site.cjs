@@ -8,6 +8,7 @@ const bulkImport = fs.readFileSync(path.join(site, 'bulk-results-import.html'), 
 const configFunction = fs.readFileSync(path.resolve(__dirname, '../functions/api/config.js'), 'utf8');
 const summaryDisplaySql = fs.readFileSync(path.resolve(__dirname, '../supabase/student_summary_display.sql'), 'utf8');
 const firstLoginPasswordSql = fs.readFileSync(path.resolve(__dirname, '../supabase/student_first_login_password_change.sql'), 'utf8');
+const adminPasswordTriggerSql = fs.readFileSync(path.resolve(__dirname, '../supabase/admin_force_student_password_change.sql'), 'utf8');
 const mainSchemaSql = fs.readFileSync(path.resolve(__dirname, '../supabase/schema.sql'), 'utf8');
 const landingSyncSql = fs.readFileSync(path.resolve(__dirname, '../supabase/landing_page_sync.sql'), 'utf8');
 const subjectCatalogSql = fs.readFileSync(path.resolve(__dirname, '../supabase/subjects_catalog_sync.sql'), 'utf8');
@@ -38,6 +39,13 @@ for (const feature of ['must_change_password', 'password_hash = crypt', 'valid_s
   assert(firstLoginPasswordSql.includes(feature), `First-login Supabase migration is missing: ${feature}`);
 }
 assert(firstLoginPasswordSql.includes('student_first_login_password_change_v1'), 'The first-login migration must be safely repeatable.');
+for (const feature of ['admin_require_student_password_change', 'Require password change', 'p_identifier: cleanIdentifier']) {
+  assert(html.includes(feature) || adminPasswordTriggerSql.includes(feature), `Admin-triggered password change is missing: ${feature}`);
+}
+for (const feature of ['public.valid_session()', "v_actor_role <> 'admin'", 'must_change_password = TRUE', 'STUDENT_PASSWORD_CHANGE_REQUIRED']) {
+  assert(adminPasswordTriggerSql.includes(feature), `The admin password-change RPC is missing its security/data behavior: ${feature}`);
+}
+assert(mainSchemaSql.includes('admin_require_student_password_change'), 'Fresh Supabase schema installs must include the admin password-change RPC.');
 const appBundle = fs.readFileSync(path.resolve(site, appScript.slice(1)), 'utf8');
 assert(appBundle.includes('data-stanbax-admin-portal'), 'The deployed Admin Portal must expose the marker used by the summary-control gate.');
 assert(appBundle.includes('Bulk Results Import / Fast Score Entry'), 'The admin portal results importer entry is missing.');
