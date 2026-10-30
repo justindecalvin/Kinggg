@@ -956,6 +956,35 @@ export const queueRemoteWrite = (key: string, serialized: string | null): void =
   scheduleFlush();
 };
 
+// Only mirror public website content automatically. Never mirror credentials,
+// auth flags, database tokens, or student records through this browser hook.
+const LANDING_CONTENT_SYNC_KEYS = new Set([
+  'stanbax_app_images',
+  'stanbax_school_info',
+  'stanbax_hero_slides',
+  'stanbax_hero_highlights',
+  'stanbax_landing_sections',
+  'stanbax_key_pillars',
+  'stanbax_key_pillars_header',
+  'stanbax_about_content',
+  'stanbax_academic_programs',
+  'stanbax_featured_courses',
+  'stanbax_clubs_list',
+  'stanbax_house_standings',
+  'stanbax_bus_routes',
+  'stanbax_meal_menu',
+  'stanbax_calendar_events',
+  'stanbax_testimonials',
+  'stanbax_testimonials_header',
+  'stanbax_faq_items',
+  'stanbax_faq_header',
+  'stanbax_campus_gallery_photos',
+  'stanbax_news_articles',
+  'stanbax_popup_notice',
+  'stanbax_navbar_content',
+  'stanbax_footer_content',
+]);
+
 let patchInstalled = false;
 export const installLocalStorageSync = (): void => {
   if (patchInstalled || typeof localStorage === 'undefined') return;
@@ -964,11 +993,11 @@ export const installLocalStorageSync = (): void => {
   const origRemove = localStorage.removeItem.bind(localStorage);
   localStorage.setItem = (key: string, value: string) => {
     origSet(key, value);
-    if (key.startsWith('stanbax_')) queueRemoteWrite(key, value);
+    if (LANDING_CONTENT_SYNC_KEYS.has(key)) queueRemoteWrite(key, value);
   };
   localStorage.removeItem = (key: string) => {
     origRemove(key);
-    if (key.startsWith('stanbax_')) queueRemoteWrite(key, null);
+    if (LANDING_CONTENT_SYNC_KEYS.has(key)) queueRemoteWrite(key, null);
   };
 };
 
@@ -1908,7 +1937,6 @@ export const forceSyncCollatedResultsToDatabase = async (payload: {
     };
   }
 };
-
 
 
 

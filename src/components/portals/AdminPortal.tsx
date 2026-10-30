@@ -139,7 +139,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToWebsite }) => 
 
   const allMenuItems: Array<{ id: AdminTab; label: string; icon: React.ElementType; badge?: string | number }> = [
     { id: 'overview', label: 'Dashboard Overview', icon: Layers },
-    { id: 'fast_scores', label: 'Fast Score Entry (Bulk CA/Exam)', icon: CheckCircle2, badge: 'Rapid Input' },
+    { id: 'fast_scores', label: 'Bulk Results Import / Fast Score Entry', icon: CheckCircle2, badge: 'Rapid Input' },
     { id: 'family_linkage', label: 'Family & Sibling Linkage', icon: Users, badge: 'Merge/Assign' },
     { id: 'roles_privileges', label: 'Admin Accounts & Privileges', icon: ShieldCheck, badge: `${adminAccounts.length + 1} Admins` },
     { 
@@ -180,7 +180,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToWebsite }) => 
       case 'overview':
         return true;
       case 'fast_scores':
-        return hasAdminPrivilege('enter_edit_grades');
+        return hasAdminPrivilege('enter_edit_grades') || hasAdminPrivilege('collate_publish_results');
       case 'family_linkage':
         return hasAdminPrivilege('manage_students') || hasAdminPrivilege('manage_admissions');
       case 'roles_privileges':
@@ -651,7 +651,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToWebsite }) => 
                     className="p-4 rounded-xl border-2 border-emerald-300 bg-emerald-50/60 hover:border-emerald-600 hover:bg-emerald-100/70 text-left transition-all group"
                   >
                     <CheckCircle2 className="w-5 h-5 text-emerald-700 mb-2 group-hover:scale-110 transition-transform" />
-                    <div className="font-bold text-xs text-stone-900">Fast Score Entry (Bulk)</div>
+                    <div className="font-bold text-xs text-stone-900">Bulk Results Import</div>
                     <div className="text-[11px] text-emerald-800 font-bold">Rapid CA1, CA2 & Exam</div>
                   </button>
 

@@ -2,6 +2,9 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { installLocalStorageSync } from './lib/supabase';
+
+installLocalStorageSync();
 
 interface ErrorBoundaryProps {
   children: ReactNode;
