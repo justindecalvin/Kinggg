@@ -2917,6 +2917,146 @@ async function startServer() {
     }
   });
 
+  app.post("/api/students/batch-upsert", (req, res) => {
+    try {
+      const { students: incoming, creatorRole = 'admin', creatorName = 'Bulk Student CSV Import' } = req.body || {};
+      if (!Array.isArray(incoming) || incoming.length === 0) {
+        return res.status(400).json({ success: false, error: 'No student records were provided for bulk upload.' });
+      }
+      if (incoming.length > 5000) {
+        return res.status(413).json({ success: false, error: 'Bulk upload is limited to 5,000 students per file.' });
+      }
+
+      const current = getOnlineStudents();
+      const byReg = new Map<string, any>();
+      const byId = new Map<string, any>();
+      const byEmail = new Map<string, any>();
+      current.forEach(student => {
+        if (!student) return;
+        if (student.id) byId.set(String(student.id).toLowerCase(), student);
+        const regKey = normalizeServerReg(student.regNumber);
+        if (regKey) byReg.set(regKey, student);
+        if (student.email) byEmail.set(String(student.email).trim().toLowerCase(), student);
+      });
+
+      const clean = (value: unknown, fallback = '') => String(value ?? '').trim() || fallback;
+      const seenIncoming = new Set<string>();
+      const saved: any[] = [];
+      let updatedCount = 0;
+      let createdCount = 0;
+      const now = new Date().toISOString();
+
+      for (let index = 0; index < incoming.length; index += 1) {
+        const raw = incoming[index] || {};
+        const rawReg = clean(raw.regNumber || raw.registration_no || raw.registration_number || raw.reg_no || raw.student_id || raw.id);
+        const rawEmail = clean(raw.email).toLowerCase();
+        const rawName = clean(raw.name || raw.full_name || raw.student_name);
+        if (!rawName) continue;
+        const key = normalizeServerReg(rawReg) || rawEmail || `name:${rawName.toLowerCase()}`;
+        if (seenIncoming.has(key)) continue;
+        seenIncoming.add(key);
+
+        const existing = (raw.id && byId.get(String(raw.id).toLowerCase())) ||
+          (normalizeServerReg(rawReg) && byReg.get(normalizeServerReg(rawReg))) ||
+          (rawEmail && byEmail.get(rawEmail));
+        const regNumber = existing?.regNumber || rawReg || `SBS/${new Date().getFullYear()}/${String(current.length + createdCount + 1).padStart(3, '0')}`;
+        const id = existing?.id || raw.id || `stu-bulk-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`;
+        const grade = clean(raw.grade || raw.grade_level || raw.class, existing?.grade || 'SSS 1 Science');
+        const parentName = clean(raw.parentName || raw.parent_name || raw.guardian_name, existing?.parentName || 'Parent / Guardian');
+        const parentPhone = clean(raw.parentPhone || raw.parent_phone || raw.guardian_phone, existing?.parentPhone || '+234 800 000 0000');
+        const password = clean(raw.password, existing?.password || 'stanbax2025');
+        const email = clean(raw.email, existing?.email || `${regNumber.toLowerCase().replace(/[^a-z0-9]/g, '')}@stanbaxschools.edu.ng`);
+        const parsedFeeTotal = Number(raw.feeTotal ?? existing?.feeTotal ?? 265000) || 265000;
+        const parsedFeePaid = Number(raw.feePaid ?? existing?.feePaid ?? 0) || 0;
+        const feeBalance = Math.max(0, parsedFeeTotal - parsedFeePaid);
+        const record = {
+          ...(existing || {}),
+          ...raw,
+          id,
+          regNumber,
+          name: rawName,
+          grade,
+          gender: clean(raw.gender, existing?.gender || 'Male') === 'Female' ? 'Female' : 'Male',
+          dateOfBirth: clean(raw.dateOfBirth || raw.date_of_birth || raw.dob, existing?.dateOfBirth || '2010-01-01'),
+          parentName,
+          parentPhone,
+          parentEmail: clean(raw.parentEmail || raw.parent_email, existing?.parentEmail || ''),
+          emergencyPhone: clean(raw.emergencyPhone || raw.emergency_phone, existing?.emergencyPhone || parentPhone),
+          email,
+          password,
+          house: clean(raw.house, existing?.house || 'Sapphire (Blue House)'),
+          attendancePercent: existing?.attendancePercent ?? 100,
+          attendanceDays: existing?.attendanceDays ?? 0,
+          totalSchoolDays: existing?.totalSchoolDays ?? 0,
+          termAverage: existing?.termAverage ?? 0,
+          feeTotal: parsedFeeTotal,
+          feePaid: parsedFeePaid,
+          feeBalance,
+          feeStatus: feeBalance === 0 ? 'Fully Paid' : parsedFeePaid > 0 ? 'Partially Paid' : 'Outstanding',
+          securityQuestion: clean(raw.securityQuestion, existing?.securityQuestion || 'What is your primary house name?'),
+          securityAnswer: clean(raw.securityAnswer, existing?.securityAnswer || clean(raw.house, 'Sapphire (Blue House)')),
+          calvinAiAccess: existing?.calvinAiAccess || {
+            active: true,
+            tier: 'regular',
+            tokenCode: `CALVIN-${regNumber.replace(/[^A-Za-z0-9]/g, '')}`,
+            activatedAt: now,
+            expiresAt: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
+            durationHours: 8760,
+            questionsCount: 0,
+          },
+          savedOnline: true,
+          storageSource: 'online_server_database',
+          createdByRole: existing?.createdByRole || creatorRole,
+          createdByName: existing?.createdByName || creatorName,
+          createdAt: existing?.createdAt || now,
+          updatedAt: now,
+        };
+        if (existing) updatedCount += 1;
+        else createdCount += 1;
+        byId.set(String(id).toLowerCase(), record);
+        byReg.set(normalizeServerReg(regNumber), record);
+        byEmail.set(email.toLowerCase(), record);
+        saved.push(record);
+      }
+
+      if (!saved.length) {
+        return res.status(400).json({ success: false, error: 'No valid student rows with names were found.' });
+      }
+      const merged = deduplicateServerStudents([...current, ...saved], new Set());
+      if (!saveOnlineStudents(merged)) {
+        return res.status(500).json({ success: false, error: 'Could not commit the bulk roster to server storage.' });
+      }
+
+      try {
+        const parents = getOnlineParents();
+        for (const student of saved) {
+          const phoneKey = String(student.parentPhone || '').replace(/[^0-9]/g, '');
+          const emailKey = String(student.parentEmail || '').trim().toLowerCase();
+          let parent = parents.find((candidate: any) => {
+            const candidatePhone = String(candidate.phone || '').replace(/[^0-9]/g, '');
+            const candidateEmail = String(candidate.email || '').trim().toLowerCase();
+            return (phoneKey.length >= 7 && candidatePhone === phoneKey) || (emailKey && candidateEmail === emailKey);
+          });
+          if (!parent) {
+            parent = { id: `parent-bulk-${Date.now()}-${Math.floor(Math.random() * 1000)}`, fullName: student.parentName, phone: student.parentPhone, email: student.parentEmail || '', password: 'parent2025', wardIds: [], wardNames: [], relationship: 'Parent / Guardian', savedOnline: true, createdAt: now };
+            parents.push(parent);
+          }
+          parent.wardIds = Array.from(new Set([...(parent.wardIds || []), student.id]));
+          parent.wardNames = Array.from(new Set([...(parent.wardNames || []), student.name]));
+        }
+        saveOnlineParents(parents);
+      } catch (parentError) {
+        console.warn('[Bulk Student Import] Parent linkage note:', parentError);
+      }
+      saved.forEach(student => broadcastRealtimeEvent('student_updated', { student }));
+      broadcastRealtimeEvent('students_updated', { count: merged.length });
+      res.status(200).json({ success: true, students: merged, updatedCount, createdCount, message: `Bulk upload complete: ${updatedCount} existing students updated and ${createdCount} new student accounts saved to the database.` });
+    } catch (err: any) {
+      console.error('[Bulk Student Import Error]', err);
+      res.status(500).json({ success: false, error: err?.message || 'Unexpected server error during bulk student upload.' });
+    }
+  });
+
   app.post("/api/students", (req, res) => {
     try {
       const body = req.body || {};

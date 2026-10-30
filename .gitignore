@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+# Generated project archive; Cloudflare Pages rejects files over 25 MiB.
+public/dist.zip

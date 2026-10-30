@@ -301,6 +301,7 @@ interface SchoolContextType {
   updateStudent: (id: string, updated: Partial<StudentProfile>) => void;
   registerStudent: (data: StudentRegistrationData) => StudentProfile;
   addStudent: (studentData: Omit<StudentProfile, 'id' | 'regNumber'> & { id?: string; regNumber?: string }, creatorRole?: string, creatorName?: string) => Promise<{ success: boolean; student?: StudentProfile; message?: string }>;
+  bulkUpsertStudents: (students: Array<Partial<StudentProfile> & { id?: string; regNumber?: string }>, creatorRole?: string, creatorName?: string) => Promise<{ success: boolean; students?: StudentProfile[]; updatedCount?: number; createdCount?: number; message?: string }>;
   onlineStudentsSynced: boolean;
   syncOnlineStudentsNow: () => Promise<void>;
   updateStudentPassport: (studentId: string, passportPhoto: string) => void;
@@ -3322,6 +3323,47 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         message: 'Account registered. Note: Saved locally while online synchronization is pending.'
       };
     }
+  };
+
+  const bulkUpsertStudents = async (
+    incomingStudents: Array<Partial<StudentProfile> & { id?: string; regNumber?: string }>,
+    creatorRole: string = 'admin',
+    creatorName: string = 'Bulk Student CSV Import'
+  ): Promise<{ success: boolean; students?: StudentProfile[]; updatedCount?: number; createdCount?: number; message?: string }> => {
+    if (!Array.isArray(incomingStudents) || incomingStudents.length === 0) {
+      throw new Error('No student records were provided for upload.');
+    }
+    const response = await fetch('/api/students/batch-upsert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ students: incomingStudents, creatorRole, creatorName }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success || !Array.isArray(data.students)) {
+      throw new Error(data.error || 'The server could not save the bulk student roster.');
+    }
+    const savedStudents = deduplicateStudentsByRegistration(data.students as StudentProfile[]);
+    markLocalMutation();
+    latestStudentsRef.current = savedStudents;
+    setStudents(savedStudents);
+    setOnlineStudentsSynced(true);
+    try { localStorage.setItem('stanbax_students', JSON.stringify(savedStudents)); } catch {}
+    broadcastLocalStateChange('stanbax_students', savedStudents);
+    await syncStateOnline('stanbax_students', savedStudents);
+    await Promise.all(savedStudents.map(student => remoteCreateCredential(
+      student.regNumber,
+      student.password || 'stanbax2025',
+      'student',
+      student.id,
+      [student.email, student.name?.toLowerCase().trim()].filter((value): value is string => Boolean(value))
+    )));
+    return {
+      success: true,
+      students: savedStudents,
+      updatedCount: data.updatedCount,
+      createdCount: data.createdCount,
+      message: data.message || `Saved ${savedStudents.length} students to the database.`,
+    };
   };
 
   const deleteStudent = (id: string) => {
@@ -13081,6 +13123,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updateStudent,
         registerStudent,
         addStudent,
+        bulkUpsertStudents,
         onlineStudentsSynced,
         syncOnlineStudentsNow,
         updateStudentPassport,

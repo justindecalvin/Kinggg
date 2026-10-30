@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSchool } from '../../../context/SchoolContext';
+import { BulkStudentCsvUpload } from './BulkStudentCsvUploadModal';
 import { normalizeRegForUpsert } from '../../../lib/supabase';
 import { 
   X, 
@@ -28,7 +29,7 @@ interface BatchResultsUploadModalProps {
   onNavigateToVault?: () => void;
 }
 
-type TabType = 'download_db' | 'upload' | 'migration' | 'templates' | 'guide';
+type TabType = 'download_db' | 'upload' | 'students_csv' | 'migration' | 'templates' | 'guide';
 
 interface ParsedRowPreview {
   studentIdOrReg: string;
@@ -1594,6 +1595,23 @@ SBS/2026/NEW01,Chioma Nwachukwu,SSS 1 Science,${r3}`;
 
             <button
               type="button"
+              onClick={() => setActiveTab('students_csv')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                activeTab === 'students_csv'
+                  ? 'bg-amber-400 text-blue-950 shadow-md font-black'
+                  : 'bg-emerald-500/20 text-emerald-100 border border-emerald-400/30 hover:bg-emerald-500/30'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>3. Bulk Student CSV</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                activeTab === 'students_csv' ? 'bg-blue-950 text-white' : 'bg-amber-400 text-blue-950'
+              }`}>
+                Roster
+              </span>
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('migration')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                 activeTab === 'migration'
@@ -1602,7 +1620,7 @@ SBS/2026/NEW01,Chioma Nwachukwu,SSS 1 Science,${r3}`;
               }`}
             >
               <Database className="w-3.5 h-3.5" />
-              <span>3. Hosting Migration &amp; Live Publish</span>
+              <span>4. Hosting Migration &amp; Live Publish</span>
             </button>
 
             <button
@@ -1615,7 +1633,7 @@ SBS/2026/NEW01,Chioma Nwachukwu,SSS 1 Science,${r3}`;
               }`}
             >
               <Copy className="w-3.5 h-3.5" />
-              <span>4. Sample Formats</span>
+              <span>5. Sample Formats</span>
             </button>
 
             <button
@@ -1628,7 +1646,7 @@ SBS/2026/NEW01,Chioma Nwachukwu,SSS 1 Science,${r3}`;
               }`}
             >
               <HelpCircle className="w-3.5 h-3.5" />
-              <span>5. Step-by-Step Guide</span>
+              <span>6. Step-by-Step Guide</span>
             </button>
           </div>
         </div>
@@ -2550,7 +2568,13 @@ SBS/2026/NEW01,Chioma Nwachukwu,SSS 1 Science,${r3}`;
           )}
 
           {/* =============================================================== */}
-          {/* TAB 3: HOSTING MIGRATION & LIVE CLOUD PUBLISH */}
+          {/* TAB 3: BULK STUDENT CSV ROSTER UPLOAD */}
+          {/* =============================================================== */}
+          {activeTab === 'students_csv' && (
+            <BulkStudentCsvUpload />
+          )}
+          {/* =============================================================== */}
+          {/* TAB 4: HOSTING MIGRATION & LIVE CLOUD PUBLISH */}
           {/* =============================================================== */}
           {activeTab === 'migration' && (
             <div className="space-y-6 animate-fade-in">
@@ -2653,7 +2677,7 @@ SBS/2026/NEW01,Chioma Nwachukwu,SSS 1 Science,${r3}`;
           )}
 
           {/* =============================================================== */}
-          {/* TAB 4: SAMPLE TEMPLATES & FORMATS */}
+          {/* TAB 5: SAMPLE TEMPLATES & FORMATS */}
           {/* =============================================================== */}
           {activeTab === 'templates' && (
             <div className="space-y-6 animate-fade-in">
@@ -2763,7 +2787,7 @@ SBS/2026/NEW01,Chioma Nwachukwu,SSS 1 Science,${r3}`;
           )}
 
           {/* =============================================================== */}
-          {/* TAB 4: STEP-BY-STEP SCORING GUIDE */}
+          {/* TAB 6: STEP-BY-STEP SCORING GUIDE */}
           {/* =============================================================== */}
           {activeTab === 'guide' && (
             <div className="space-y-6 animate-fade-in">

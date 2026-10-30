@@ -5,5 +5,21 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/verify-site.cjs"
+  },
+  "dependencies": {
+    "@google/genai": "^2.32.0",
+    "@supabase/supabase-js": "^2.118.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "jszip": "^3.10.2",
+    "lucide-react": "^1.65.0",
+    "pdf-parse": "^2.4.5",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "vite": "^8.3.5"
   }
 }
