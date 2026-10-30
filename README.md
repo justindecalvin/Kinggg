@@ -13,7 +13,7 @@ Already-open browsers poll the shared state every 15 seconds and notify the app'
 
 ## School-wide student result summary cards
 
-Administrators and proprietress users can open **Student summary display** from the floating control at the lower-left of the screen after signing into the Admin portal. The control can show or hide the summary section, show or hide individual cards, and change their labels. Saving writes the setting through the administrator-verified Supabase `put_states` RPC to the shared `school_state` table. All users receive changes through the existing 15-second state refresh.
+Only an authenticated administrator can open **Student summary display**, and only while inside the Admin portal. It is not shown on the public landing page or in the proprietress, staff, parent, or student portals. The control can show or hide the summary section, show or hide individual cards, and change their labels. Saving writes the setting through the administrator-verified Supabase `put_states` RPC to the shared `school_state` table. All users receive changes through the existing 15-second state refresh.
 
 Before using this setting, run [`supabase/student_summary_display.sql`](supabase/student_summary_display.sql) once in the Supabase SQL Editor. It initializes the shared display setting and marks that non-sensitive setting publicly readable. Only a valid administrator session can change it.
 

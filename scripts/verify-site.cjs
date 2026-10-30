@@ -24,6 +24,11 @@ assert(!html.includes('Customize summary cards') && !html.includes('stanbax_stud
 for (const feature of ['Student summary display', 'Save for all users', 'stanbax_student_summary_display', 'rest/v1/rpc/put_states', 'stanbax_admin_auth']) {
   assert(html.includes(feature), `School-wide admin summary control is missing: ${feature}`);
 }
+const summaryGateStart = html.indexOf('const adminCanManageSummary');
+const summaryGateEnd = html.indexOf('const summaryAdminControlId', summaryGateStart);
+const summaryGate = html.slice(summaryGateStart, summaryGateEnd);
+assert(summaryGateStart >= 0 && summaryGateEnd > summaryGateStart, 'The school-wide summary control authorization gate is missing.');
+assert(summaryGate.includes('data-stanbax-admin-portal="true"') && summaryGate.includes('stanbax_admin_auth') && !summaryGate.includes('stanbax_proprietress_auth'), 'The summary control must be limited to the authenticated Admin Portal.');
 assert(summaryDisplaySql.includes("'stanbax_student_summary_display'") && summaryDisplaySql.includes('is_public = true'), 'Supabase must expose the shared summary setting to all users.');
 assert(mainSchemaSql.includes("'stanbax_student_summary_display'") && landingSyncSql.includes("('stanbax_student_summary_display', true)"), 'The setting must be represented in the main schema and public-state migration.');
 for (const feature of ['get_password_change_status', 'complete_first_login_password_change', 'Update password and continue', 'p_new_password: next']) {
@@ -34,6 +39,7 @@ for (const feature of ['must_change_password', 'password_hash = crypt', 'valid_s
 }
 assert(firstLoginPasswordSql.includes('student_first_login_password_change_v1'), 'The first-login migration must be safely repeatable.');
 const appBundle = fs.readFileSync(path.resolve(site, appScript.slice(1)), 'utf8');
+assert(appBundle.includes('data-stanbax-admin-portal'), 'The deployed Admin Portal must expose the marker used by the summary-control gate.');
 assert(appBundle.includes('Bulk Results Import / Fast Score Entry'), 'The admin portal results importer entry is missing.');
 assert(appBundle.includes('h(`enter_edit_grades`)||h(`collate_publish_results`)'), 'The importer must be visible to admins authorized to edit or publish results.');
 assert(appBundle.includes('__stanbaxLandingSyncInstalled'), 'Automatic landing-content database sync is missing from the deployed app.');

@@ -240,7 +240,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToWebsite }) => 
   const menuItems = allMenuItems.filter(item => isTabAllowedForAdmin(item.id));
 
   return (
-    <div className="h-screen bg-[#FDFBF7] flex flex-col font-['Nunito',sans-serif] overflow-hidden">
+    <div data-stanbax-admin-portal="true" className="h-screen bg-[#FDFBF7] flex flex-col font-['Nunito',sans-serif] overflow-hidden">
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-stone-200 px-2 sm:px-6 lg:px-8 py-2 sm:py-3.5 flex items-center justify-between shadow-xs shrink-0 gap-1 sm:gap-2 min-w-0 max-w-full overflow-hidden">
         <div className="flex items-center gap-1 sm:gap-2.5 min-w-0 shrink">

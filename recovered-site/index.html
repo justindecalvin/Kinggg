@@ -207,7 +207,7 @@
         }
       }
 
-      await import("/assets/index-6d9ce9da.js");
+      await import("/assets/index-4a3d95fd.js");
 
       const summaryStateKey = "stanbax_student_summary_display";
       const summaryDefinitions = [
@@ -262,8 +262,10 @@
           }
         }
       };
-      const adminCanManageSummary = () => ["stanbax_admin_auth", "stanbax_proprietress_auth"]
-        .some(key => localStorage.getItem(key) === "true" || sessionStorage.getItem(key) === "true");
+      const adminCanManageSummary = () => Boolean(
+        document.querySelector('[data-stanbax-admin-portal="true"]') &&
+        (localStorage.getItem("stanbax_admin_auth") === "true" || sessionStorage.getItem("stanbax_admin_auth") === "true")
+      );
       const summaryAdminControlId = "stanbax-summary-schoolwide-admin";
       const installAdminSummaryControl = () => {
         let control = document.getElementById(summaryAdminControlId);
