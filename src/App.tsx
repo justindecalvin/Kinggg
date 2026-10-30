@@ -24,7 +24,7 @@ import { UserTourModal } from './components/UserTourModal';
 import { CampusGallery } from './components/CampusGallery';
 import { SchoolNewsBlogSection } from './components/SchoolNewsBlogSection';
 import { ContributorsSection } from './components/ContributorsSection';
-import { Compass, X } from 'lucide-react';
+import { Compass, X, UploadCloud } from 'lucide-react';
 import { FloatingChatWidget } from './components/chat/FloatingChatWidget';
 
 // Dedicated Subpages & Portals
@@ -134,6 +134,21 @@ const MainAppContent: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#FDFBF7] text-neutral-900 font-['Nunito',sans-serif]">
         <TutorPortal onBackToWebsite={() => handleNavigate('home')} />
+        {isAdminAuthenticated && (
+          <button
+            type="button"
+            onClick={() => {
+              try { sessionStorage.setItem('stanbax_open_bulk_upload', 'true'); } catch {}
+              setActiveSection('admin-portal');
+            }}
+            className="fixed bottom-5 right-20 z-[60] inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3.5 py-3 text-xs font-black text-white shadow-xl ring-4 ring-white/80 transition hover:bg-emerald-700 hover:scale-105 active:scale-95 sm:right-24 sm:px-4"
+            title="Open Bulk Results Upload"
+            aria-label="Open Bulk Results Upload"
+          >
+            <UploadCloud className="h-4 w-4 shrink-0" />
+            <span>Bulk Upload</span>
+          </button>
+        )}
         <FloatingChatWidget />
       </div>
     );

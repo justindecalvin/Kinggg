@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { SchoolLogo } from '../SchoolLogo';
 import { 
@@ -131,6 +131,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToWebsite }) => 
   const [showRosterModal, setShowRosterModal] = useState(false);
   const [showDownloadLoginsModal, setShowDownloadLoginsModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('stanbax_open_bulk_upload') === 'true') {
+        sessionStorage.removeItem('stanbax_open_bulk_upload');
+        setActiveTab('fast_scores');
+      }
+    } catch {}
+  }, []);
 
   const handleLogout = () => {
     logoutAdmin();
