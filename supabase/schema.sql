@@ -1029,21 +1029,21 @@ BEGIN
       v_key, 
       v_data, 
       v_key IN (
-        'stanbax_students', 'stanbax_classes', 'stanbax_subjects', 'stanbax_tutors', 
-        'stanbax_parents_list', 'stanbax_school_info', 'stanbax_footer_content', 
-        'stanbax_navbar_content', 'stanbax_hero_slides', 'stanbax_hero_highlights', 
-        'stanbax_key_pillars', 'stanbax_key_pillars_header', 'stanbax_about_content', 
-        'stanbax_academic_programs', 'stanbax_assessment_config', 'stanbax_grading_system', 
-        'stanbax_official_signatures', 'stanbax_deleted_account_ids', 'stanbax_school_calendar',
-        'stanbax_faq_items', 'stanbax_faq_header', 'stanbax_testimonials', 'stanbax_testimonials_header',
-        'stanbax_term_resumption_config', 'stanbax_gallery_photos'
+        'stanbax_school_info', 'stanbax_app_images', 'stanbax_app_theme', 'stanbax_hero_slides',
+        'stanbax_hero_highlights', 'stanbax_key_pillars', 'stanbax_key_pillars_header',
+        'stanbax_about_content', 'stanbax_academic_programs', 'stanbax_featured_courses',
+        'stanbax_clubs_list', 'stanbax_house_standings', 'stanbax_bus_routes',
+        'stanbax_meal_menu', 'stanbax_calendar_events', 'stanbax_testimonials',
+        'stanbax_testimonials_header', 'stanbax_faq_items', 'stanbax_faq_header',
+        'stanbax_campus_gallery_photos', 'stanbax_news_articles', 'stanbax_popup_notice',
+        'stanbax_landing_sections', 'stanbax_subjects'
       ), 
       v_ref, 
       now()
     )
     ON CONFLICT (key) DO UPDATE 
       SET data = excluded.data, 
-          is_public = excluded.is_public OR public.school_state.is_public,
+          is_public = excluded.is_public,
           updated_by = excluded.updated_by, 
           updated_at = now();
     v_written := v_written + 1;
@@ -1200,26 +1200,11 @@ INSERT INTO public.school_state (key, is_public) VALUES
   ('stanbax_faq_items', true),
   ('stanbax_faq_header', true),
   ('stanbax_app_images', true),
+  ('stanbax_app_theme', true),
   ('stanbax_gallery_images', true),
   ('stanbax_news_articles', true),
   ('stanbax_popup_notice', true),
-  ('stanbax_navbar_content', true),
-  ('stanbax_footer_content', true),
-  ('stanbax_role_privileges', true),
-  ('stanbax_headmistress_profile', true),
-  ('stanbax_moderators', true),
-  ('stanbax_school_rep_config', true),
-  ('stanbax_visitor_conversations', true),
-  ('stanbax_chat_channels', true),
-  ('stanbax_chat_messages', true),
-  ('stanbax_students', true),
-  ('stanbax_tutors', true),
-  ('stanbax_parents_list', true),
-  ('stanbax_subjects', true),
-  ('stanbax_deleted_account_ids', true),
-  ('stanbax_assessment_config', true),
-  ('stanbax_grading_system', true),
-  ('stanbax_official_signatures', true)
+  ('stanbax_subjects', true)
 ON CONFLICT (key) DO UPDATE SET is_public = EXCLUDED.is_public;
 
 INSERT INTO public.credentials (identifier, aliases, password_hash, role, ref_id) VALUES

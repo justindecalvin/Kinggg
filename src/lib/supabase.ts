@@ -68,6 +68,27 @@ export let supabase: SupabaseClient | null = createClientInstance();
 
 export const isRemoteEnabled = (): boolean => supabase !== null;
 
+/** Upload image media to shared object storage. The bucket is public-read but
+ * writes require a verified school admin session enforced by storage RLS. */
+export const uploadSchoolMedia = async (file: File, folder = 'website'): Promise<string> => {
+  if (!supabase) throw new Error('Shared database is not configured. Connect Supabase before uploading media.');
+  if (!sessionToken) await ensureAdminRemoteSession();
+  if (!sessionToken || !(await checkRemoteAdminStatus())) {
+    throw new Error('A verified administrator session is required to upload school media.');
+  }
+  const acceptedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']);
+  if (!acceptedTypes.has(file.type)) throw new Error('Choose a JPEG, PNG, WebP, GIF, or SVG image.');
+  if (file.size > 10 * 1024 * 1024) throw new Error('Image uploads are limited to 10 MB.');
+  const safeFolder = folder.replace(/[^a-z0-9_-]/gi, '-').toLowerCase().slice(0, 40) || 'website';
+  const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'img';
+  const objectPath = `${safeFolder}/${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from('school-media').upload(objectPath, file, {
+    cacheControl: '3600', contentType: file.type, upsert: false,
+  });
+  if (error) throw new Error(`Media upload failed: ${error.message}`);
+  return supabase.storage.from('school-media').getPublicUrl(objectPath).data.publicUrl;
+};
+
 export const setDbSession = (token: string | null): void => {
   sessionToken = token;
   try {
@@ -117,6 +138,7 @@ export const configureSupabase = async (
 
     // Hydrate remote state
     await hydrateFromSupabase();
+    startRemoteStateRefresh();
 
     return { ok: true, message: 'Supabase central database connected successfully! Multi-device sync is live.' };
   } catch (err: any) {
@@ -756,84 +778,11 @@ export const deduplicateStudentsByRegistration = <T extends Record<string, any>>
   return result;
 };
 
-const buildPublicMirrorItems = (): Array<{ key: string; data: unknown }> => {
-  const mirrors: Array<{ key: string; data: unknown }> = [];
-  try {
-    const rawConv = localStorage.getItem('stanbax_visitor_conversations');
-    const rawRep = localStorage.getItem('stanbax_school_rep_config');
-    if (rawConv || rawRep) {
-      mirrors.push({
-        key: 'stanbax_navbar_content',
-        data: {
-          __type: 'PUBLIC_CHAT_MIRROR',
-          visitorConversations: rawConv ? JSON.parse(rawConv) : undefined,
-          schoolRepConfig: rawRep ? JSON.parse(rawRep) : undefined,
-          updatedAt: new Date().toISOString(),
-        },
-      });
-    }
-  } catch {}
+// Private operational collections must never be copied into anonymously
+// readable navbar/footer rows. Public website content is stored under its own
+// public CMS keys instead.
+const buildPublicMirrorItems = (): Array<{ key: string; data: unknown }> => [];
 
-  try {
-    const rawDeleted = localStorage.getItem('stanbax_deleted_account_ids');
-    const deletedSet = new Set<string>();
-    if (rawDeleted) {
-      try {
-        const arr = JSON.parse(rawDeleted);
-        if (Array.isArray(arr)) arr.forEach(id => deletedSet.add(String(id).toLowerCase()));
-      } catch {}
-    }
-
-    const rawChannels = localStorage.getItem('stanbax_chat_channels');
-    const rawMessages = localStorage.getItem('stanbax_chat_messages');
-    const rawStudents = localStorage.getItem('stanbax_students');
-    const rawTutors = localStorage.getItem('stanbax_tutors');
-    const rawParents = localStorage.getItem('stanbax_parents_list');
-    const rawModerators = localStorage.getItem('stanbax_moderators');
-    const rawSubjects = localStorage.getItem('stanbax_subjects');
-    const rawAssessmentConfig = localStorage.getItem('stanbax_assessment_config');
-    const rawGradingSystem = localStorage.getItem('stanbax_grading_system');
-    const rawSignatures = localStorage.getItem('stanbax_official_signatures');
-
-    const cleanStudents = rawStudents ? deduplicateStudentsByRegistration(JSON.parse(rawStudents) as any[], deletedSet) : undefined;
-    const cleanTutors = rawTutors ? (JSON.parse(rawTutors) as any[]).filter(t => t && t.id && !deletedSet.has(String(t.id).toLowerCase())) : undefined;
-    const cleanParents = rawParents ? (JSON.parse(rawParents) as any[]).filter(p => p && p.id && !deletedSet.has(String(p.id).toLowerCase())) : undefined;
-    const cleanModerators = rawModerators ? (JSON.parse(rawModerators) as any[]).filter(m => m && m.id && !deletedSet.has(String(m.id).toLowerCase())) : undefined;
-
-    if (
-      rawChannels ||
-      rawMessages ||
-      rawStudents ||
-      rawTutors ||
-      rawParents ||
-      rawSubjects ||
-      rawAssessmentConfig ||
-      rawGradingSystem ||
-      rawSignatures
-    ) {
-      mirrors.push({
-        key: 'stanbax_footer_content',
-        data: {
-          __type: 'PUBLIC_COMMUNITY_MIRROR',
-          chatChannels: rawChannels ? JSON.parse(rawChannels) : undefined,
-          chatMessages: rawMessages ? JSON.parse(rawMessages) : undefined,
-          students: cleanStudents,
-          tutors: cleanTutors,
-          parents: cleanParents,
-          moderators: cleanModerators,
-          subjects: rawSubjects ? JSON.parse(rawSubjects) : undefined,
-          assessmentConfig: rawAssessmentConfig ? JSON.parse(rawAssessmentConfig) : undefined,
-          gradingSystem: rawGradingSystem ? JSON.parse(rawGradingSystem) : undefined,
-          officialSignatures: rawSignatures ? JSON.parse(rawSignatures) : undefined,
-          deletedAccountIds: rawDeleted ? JSON.parse(rawDeleted) : undefined,
-          updatedAt: new Date().toISOString(),
-        },
-      });
-    }
-  } catch {}
-
-  return mirrors;
-};
 
 const isBrowserAdminAuthorized = (): boolean => {
   if (typeof localStorage === 'undefined') return false;
@@ -919,25 +868,21 @@ const flushWrites = async () => {
   }
   
   try {
-    if (upserts.length) {
-      let { error } = await supabase.rpc('put_states', { p_items: upserts });
+    for (const item of upserts) {
+      let { error } = await supabase.rpc('put_states', { p_items: [item] });
       if (error && isBrowserAdminAuthorized()) {
         setDbSession(null);
         const reauthed = await ensureAdminRemoteSession();
         if (reauthed) {
-          const retry = await supabase.rpc('put_states', { p_items: upserts });
+          const retry = await supabase.rpc('put_states', { p_items: [item] });
           error = retry.error;
         }
       }
-      if (error) {
-        console.warn('[Supabase Sync] State write restricted or unauthorized:', error.message);
-      }
+      if (error) console.warn(`[Supabase Sync] Could not save ${item.key}:`, error.message);
     }
-    if (deletes.length) {
-      const { error } = await supabase.rpc('delete_states', { p_keys: deletes });
-      if (error) {
-        console.warn('[Supabase Sync] State delete restricted:', error.message);
-      }
+    for (const key of deletes) {
+      const { error } = await supabase.rpc('delete_states', { p_keys: [key] });
+      if (error) console.warn(`[Supabase Sync] Could not delete ${key}:`, error.message);
     }
   } catch (err) {
     console.warn('[Supabase Sync] State flush handled gracefully:', err);
@@ -956,34 +901,38 @@ export const queueRemoteWrite = (key: string, serialized: string | null): void =
   scheduleFlush();
 };
 
-// Only mirror public website content automatically. Never mirror credentials,
-// auth flags, database tokens, or student records through this browser hook.
-const LANDING_CONTENT_SYNC_KEYS = new Set([
-  'stanbax_app_images',
-  'stanbax_school_info',
-  'stanbax_hero_slides',
-  'stanbax_hero_highlights',
-  'stanbax_landing_sections',
-  'stanbax_key_pillars',
-  'stanbax_key_pillars_header',
-  'stanbax_about_content',
-  'stanbax_academic_programs',
-  'stanbax_featured_courses',
-  'stanbax_clubs_list',
-  'stanbax_house_standings',
-  'stanbax_bus_routes',
-  'stanbax_meal_menu',
-  'stanbax_calendar_events',
-  'stanbax_testimonials',
-  'stanbax_testimonials_header',
-  'stanbax_faq_items',
-  'stanbax_faq_header',
-  'stanbax_campus_gallery_photos',
-  'stanbax_news_articles',
-  'stanbax_popup_notice',
-  'stanbax_navbar_content',
-  'stanbax_footer_content',
+// Shared application records are written through to the central database.
+// Authentication material, credentials, per-device caches and UI preferences
+// must remain browser-local; they are deliberately excluded from this set.
+const SHARED_STATE_KEYS = new Set([
+  'stanbax_about_content', 'stanbax_academic_programs', 'stanbax_alumni_registrations',
+  'stanbax_app_images', 'stanbax_app_theme', 'stanbax_applications', 'stanbax_assessment_config',
+  'stanbax_attendance_records', 'stanbax_broadcast_logs', 'stanbax_bus_routes',
+  'stanbax_calendar_events', 'stanbax_calvin_tokens', 'stanbax_campus_gallery_photos',
+  'stanbax_cbt_attempts', 'stanbax_cbt_exams', 'stanbax_chat_channels',
+  'stanbax_chat_messages', 'stanbax_classes', 'stanbax_clubs_list',
+  'stanbax_contributors', 'stanbax_custom_results', 'stanbax_deleted_account_ids',
+  'stanbax_entrance_exam_settings', 'stanbax_ephemeral_statuses', 'stanbax_faculty_members',
+  'stanbax_faq_header', 'stanbax_faq_items', 'stanbax_featured_courses',
+  'stanbax_fee_payments', 'stanbax_grading_system', 'stanbax_hero_highlights',
+  'stanbax_hero_slides', 'stanbax_homeworks', 'stanbax_house_standings',
+  'stanbax_inquiries', 'stanbax_key_pillars', 'stanbax_key_pillars_header',
+  'stanbax_landing_sections', 'stanbax_lesson_notes', 'stanbax_library_books',
+  'stanbax_meal_menu', 'stanbax_news_articles', 'stanbax_notes_enabled',
+  'stanbax_notices', 'stanbax_official_signatures', 'stanbax_parent_consultations',
+  'stanbax_parents_list',
+  'stanbax_press_editors', 'stanbax_press_president', 'stanbax_proprietress_appointments',
+  'stanbax_proprietress_directives', 'stanbax_proprietress_messages',
+  'stanbax_proprietress_profile', 'stanbax_role_privileges', 'stanbax_headmistress_profile',
+  'stanbax_school_info', 'stanbax_schemes_of_work',
+  'stanbax_school_rep_config', 'stanbax_sickbay_logs', 'stanbax_student_submissions',
+  'stanbax_students', 'stanbax_subjects', 'stanbax_term_resumption_config',
+  'stanbax_testimonials', 'stanbax_testimonials_header', 'stanbax_tutors',
+  'stanbax_visitor_conversations', 'stanbax_waec_dept_recommendations',
+  'stanbax_waec_prompt_broadcast', 'stanbax_waec_registrations', 'stanbax_waec_subjects',
+  'stanbax_weekly_timetables',
 ]);
+const isSharedStateKey = (key: string): boolean => SHARED_STATE_KEYS.has(key);
 
 let patchInstalled = false;
 export const installLocalStorageSync = (): void => {
@@ -993,11 +942,11 @@ export const installLocalStorageSync = (): void => {
   const origRemove = localStorage.removeItem.bind(localStorage);
   localStorage.setItem = (key: string, value: string) => {
     origSet(key, value);
-    if (LANDING_CONTENT_SYNC_KEYS.has(key)) queueRemoteWrite(key, value);
+    if (isSharedStateKey(key)) queueRemoteWrite(key, value);
   };
   localStorage.removeItem = (key: string) => {
     origRemove(key);
-    if (LANDING_CONTENT_SYNC_KEYS.has(key)) queueRemoteWrite(key, null);
+    if (isSharedStateKey(key)) queueRemoteWrite(key, null);
   };
 };
 
@@ -1060,7 +1009,12 @@ export const hydrateFromSupabase = async (): Promise<void> => {
         } else if (key === 'stanbax_moderators' && Array.isArray(val)) {
           dataToWrite = val.filter(m => m && m.id && !deletedSet.has(String(m.id).toLowerCase()));
         }
-        localStorage.setItem(key, JSON.stringify(dataToWrite));
+        const serialized = JSON.stringify(dataToWrite);
+        const previous = localStorage.getItem(key);
+        if (previous !== serialized) {
+          localStorage.setItem(key, serialized);
+          broadcastLocalStateChange(key, dataToWrite);
+        }
       }
 
       // Unpack public mirrors for anonymous / non-admin readers if direct keys weren't returned
@@ -1128,7 +1082,7 @@ export const hydrateFromSupabase = async (): Promise<void> => {
     if (sessionToken) {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('stanbax_') && !remoteKeys.has(k)) {
+        if (k && isSharedStateKey(k) && !remoteKeys.has(k)) {
           queueRemoteWrite(k, localStorage.getItem(k));
         }
       }
@@ -1136,6 +1090,21 @@ export const hydrateFromSupabase = async (): Promise<void> => {
   } catch (err) {
     console.warn('[Supabase Hydrate] Fallback to local cache:', err);
   }
+};
+
+let remoteRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let remoteRefreshInFlight = false;
+/** Refresh shared rows periodically and when a user returns to this tab. */
+export const startRemoteStateRefresh = (): void => {
+  if (remoteRefreshTimer || !supabase || typeof window === 'undefined') return;
+  const refresh = async () => {
+    if (remoteRefreshInFlight || document.visibilityState === 'hidden') return;
+    remoteRefreshInFlight = true;
+    try { await hydrateFromSupabase(); } finally { remoteRefreshInFlight = false; }
+  };
+  remoteRefreshTimer = setInterval(() => { void refresh(); }, 20_000);
+  window.addEventListener('focus', () => { void refresh(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void refresh(); });
 };
 
 export const SNAPSHOT_KEY_TO_STORAGE_KEY: Record<string, string> = {
@@ -1396,6 +1365,7 @@ export const configureSupabaseCredentials = (url: string, anonKey: string): bool
       auth: { persistSession: false, autoRefreshToken: false },
       global: { fetch: authedFetch },
     });
+    startRemoteStateRefresh();
     return true;
   } catch (err) {
     console.warn('[Supabase Config] Failed to update credentials:', err);
@@ -1427,7 +1397,7 @@ export const syncLocalSchoolStateToSupabase = async (): Promise<{
     const snapshotData: Record<string, unknown> = {};
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith('stanbax_') && k !== SESSION_KEY && k !== CONFIG_URL_KEY && k !== CONFIG_KEY_KEY) {
+      if (k && isSharedStateKey(k)) {
         const raw = localStorage.getItem(k);
         if (raw && raw !== 'null' && raw !== 'undefined') {
           try {
@@ -1937,6 +1907,3 @@ export const forceSyncCollatedResultsToDatabase = async (payload: {
     };
   }
 };
-
-
-

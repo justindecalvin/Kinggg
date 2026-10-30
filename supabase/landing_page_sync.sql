@@ -1,7 +1,7 @@
 -- Run this once in Supabase Dashboard > SQL Editor.
 -- The main schema.sql must already have been applied (it creates school_state,
 -- put_states, and the public-read RLS policies).
--- Only public website content is exposed here; do not add credentials or private records.
+-- Only public website CMS fields are exposed here; never add accounts, rosters or private messages.
 
 BEGIN;
 
@@ -29,16 +29,14 @@ VALUES
   ('stanbax_campus_gallery_photos', true),
   ('stanbax_news_articles', true),
   ('stanbax_popup_notice', true),
-  ('stanbax_navbar_content', true),
-  ('stanbax_footer_content', true)
+  ('stanbax_navbar_content', false),
+  ('stanbax_footer_content', false)
 ON CONFLICT (key) DO UPDATE
-  SET is_public = true,
+  SET is_public = EXCLUDED.is_public,
       updated_at = now();
 
 COMMIT;
 
 -- The app writes these values through public.put_states after an admin login.
--- This migration makes them readable to landing-page visitors through the
--- existing school_state_select_public policy. Uploaded image contents currently
--- live in the JSON state (usually as image URLs/data URLs); for large originals,
--- use Supabase Storage rather than storing large base64 strings in JSONB.
+-- Account and communication data are private. CMS images should reference
+-- Supabase Storage URLs rather than large embedded data URLs.

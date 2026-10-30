@@ -2,7 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { installLocalStorageSync } from './lib/supabase';
+import { hydrateFromSupabase, installLocalStorageSync, startRemoteStateRefresh } from './lib/supabase';
 
 installLocalStorageSync();
 
@@ -89,8 +89,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 }
 
-createRoot(document.getElementById('root')!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>
-);
+const root = createRoot(document.getElementById('root')!);
+void (async () => {
+  // Pull the shared database snapshot before React reads its localStorage-backed
+  // initial state, preventing a fresh browser from rendering stale defaults.
+  try { await hydrateFromSupabase(); } catch (error) { console.warn('[Startup] Cloud hydration failed; using local cache.', error); }
+  startRemoteStateRefresh();
+  root.render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+})();

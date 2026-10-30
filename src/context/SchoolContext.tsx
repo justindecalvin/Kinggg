@@ -11,6 +11,7 @@ import {
   remoteCheckCredentials,
   syncStateOnline,
   syncNewDataTypesOnline,
+  uploadSchoolMedia,
   ensureAdminRemoteSession,
   broadcastLocalStateChange,
   fetchLiveSupabaseChatAndDirectoryState,
@@ -930,15 +931,30 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const updateImage = (key: keyof AppImages, newUrlOrData: string) => {
-    setImages(prev => {
-      const updated = { ...prev, [key]: newUrlOrData };
-      try {
-        localStorage.setItem('stanbax_app_images', JSON.stringify(updated));
-      } catch (err) {
-        console.warn('Storage quota exceeded or error storing image', err);
-      }
+    const saveImage = (url: string) => setImages(prev => {
+      const updated = { ...prev, [key]: url };
+      try { localStorage.setItem('stanbax_app_images', JSON.stringify(updated)); }
+      catch (err) { console.warn('Image reference could not be cached locally', err); }
+      void syncStateOnline('stanbax_app_images', updated);
+      broadcastLocalStateChange('stanbax_app_images', updated);
       return updated;
     });
+    // Admin image editors historically pass Data URLs. Convert them to a shared
+    // Storage URL before saving the app-wide image config to PostgreSQL.
+    if (newUrlOrData.startsWith('data:image/')) {
+      void (async () => {
+        try {
+          const response = await fetch(newUrlOrData);
+          const blob = await response.blob();
+          const file = new File([blob], `${String(key)}.${blob.type.split('/')[1] || 'img'}`, { type: blob.type });
+          saveImage(await uploadSchoolMedia(file, 'website'));
+        } catch (error) {
+          console.error('[Media] Image was not saved: shared upload failed.', error);
+        }
+      })();
+      return;
+    }
+    saveImage(newUrlOrData);
   };
 
   const resetImagesToDefault = () => {
@@ -10459,24 +10475,50 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const addGalleryPhoto = (photo: Omit<GalleryPhoto, 'id' | 'uploadedAt'>) => {
-    const newPhoto: GalleryPhoto = {
-      ...photo,
-      id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      uploadedAt: new Date().toISOString().split('T')[0]
+    const savePhoto = (imageUrl: string) => {
+      const newPhoto: GalleryPhoto = {
+        ...photo, imageUrl,
+        id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        uploadedAt: new Date().toISOString().split('T')[0]
+      };
+      setGalleryPhotos(prev => {
+        const next = [newPhoto, ...prev];
+        try { localStorage.setItem('stanbax_campus_gallery_photos', JSON.stringify(next)); }
+        catch (err) { console.warn('Storage error on gallery photo', err); }
+        void syncStateOnline('stanbax_campus_gallery_photos', next);
+        return next;
+      });
     };
-    setGalleryPhotos(prev => {
-      const next = [newPhoto, ...prev];
-      try {
-        localStorage.setItem('stanbax_campus_gallery_photos', JSON.stringify(next));
-      } catch (err) {
-        console.warn('Storage error on gallery photo', err);
-      }
-      void syncStateOnline('stanbax_campus_gallery_photos', next);
-      return next;
-    });
+    if (photo.imageUrl.startsWith('data:image/')) {
+      void (async () => {
+        try {
+          const response = await fetch(photo.imageUrl);
+          const blob = await response.blob();
+          const file = new File([blob], `gallery.${blob.type.split('/')[1] || 'img'}`, { type: blob.type });
+          savePhoto(await uploadSchoolMedia(file, 'gallery'));
+        } catch (error) {
+          console.error('[Media] Gallery photo was not saved: shared upload failed.', error);
+        }
+      })();
+      return;
+    }
+    savePhoto(photo.imageUrl);
   };
 
   const updateGalleryPhoto = (id: string, updates: Partial<GalleryPhoto>) => {
+    if (updates.imageUrl?.startsWith('data:image/')) {
+      void (async () => {
+        try {
+          const response = await fetch(updates.imageUrl!);
+          const blob = await response.blob();
+          const file = new File([blob], `gallery.${blob.type.split('/')[1] || 'img'}`, { type: blob.type });
+          updateGalleryPhoto(id, { ...updates, imageUrl: await uploadSchoolMedia(file, 'gallery') });
+        } catch (error) {
+          console.error('[Media] Gallery image update failed; existing image retained.', error);
+        }
+      })();
+      return;
+    }
     setGalleryPhotos(prev => {
       const next = prev.map(p => p.id === id ? { ...p, ...updates } : p);
       try {
@@ -11969,7 +12011,19 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const detail = (e as CustomEvent)?.detail;
       if (!detail?.key) return;
       const { key, data } = detail;
-      if (key === 'stanbax_visitor_conversations' && Array.isArray(data)) {
+      if (key === 'stanbax_app_images' && data && typeof data === 'object') {
+        setImages(prev => ({ ...prev, ...data }));
+      } else if (key === 'stanbax_school_info' && data && typeof data === 'object') {
+        setSchoolInfo(prev => ({ ...prev, ...data }));
+      } else if (key === 'stanbax_hero_slides' && Array.isArray(data)) {
+        setHeroSlides(data);
+      } else if (key === 'stanbax_landing_sections' && data && typeof data === 'object') {
+        setLandingSections(data as LandingPageSectionsConfig);
+      } else if (key === 'stanbax_students' && Array.isArray(data)) {
+        setStudents(deduplicateStudentsByRegistration(data));
+      } else if (key === 'stanbax_deleted_account_ids' && Array.isArray(data)) {
+        setDeletedAccountIds(data.map(String));
+      } else if (key === 'stanbax_visitor_conversations' && Array.isArray(data)) {
         setVisitorConversations(prev => {
           const { merged, changed } = mergeConversationLists(prev, data);
           return changed ? merged : prev;
