@@ -30,7 +30,8 @@ VALUES
   ('stanbax_news_articles', true),
   ('stanbax_popup_notice', true),
   ('stanbax_navbar_content', true),
-  ('stanbax_footer_content', true)
+  ('stanbax_footer_content', true),
+  ('stanbax_student_summary_display', true)
 ON CONFLICT (key) DO UPDATE
   SET is_public = true,
       updated_at = now();

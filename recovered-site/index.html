@@ -65,6 +65,208 @@
 
       await import("/assets/index-oJXusYPh.js");
 
+      const summaryStateKey = "stanbax_student_summary_display";
+      const summaryDefinitions = [
+        { key: "average", label: "Collated Average" },
+        { key: "standing", label: "Class Standing" },
+        { key: "gpa", label: "Cumulative GPA" },
+        { key: "status", label: "Standing / Status" },
+      ];
+      const defaultSummaryPreferences = () => ({
+        visible: true,
+        cards: Object.fromEntries(summaryDefinitions.map(item => [item.key, { visible: true, label: item.label }])),
+      });
+      const readSummaryPreferences = () => {
+        try {
+          const saved = JSON.parse(localStorage.getItem(summaryStateKey) || "null");
+          return {
+            ...defaultSummaryPreferences(),
+            ...(saved && typeof saved === "object" ? saved : {}),
+            cards: Object.fromEntries(summaryDefinitions.map(item => [item.key, {
+              visible: saved?.cards?.[item.key]?.visible !== false,
+              label: typeof saved?.cards?.[item.key]?.label === "string" ? saved.cards[item.key].label : item.label,
+            }])),
+          };
+        } catch { return defaultSummaryPreferences(); }
+      };
+      const findSummaryCards = () => {
+        const preferences = readSummaryPreferences();
+        const found = {};
+        for (const item of summaryDefinitions) {
+          const labels = new Set([item.label, preferences.cards[item.key].label].map(value => value.trim().toLowerCase()));
+          const labelNode = Array.from(document.querySelectorAll("span")).find(node => labels.has((node.textContent || "").trim().toLowerCase()));
+          if (!labelNode) continue;
+          let card = labelNode.parentElement;
+          while (card && !(card.tagName === "DIV" && card.classList.contains("bg-white"))) card = card.parentElement;
+          if (card) found[item.key] = { card, labelNode };
+        }
+        const entries = Object.values(found);
+        const group = entries.length ? entries[0].card.parentElement : null;
+        if (!group || entries.length !== summaryDefinitions.length || entries.some(entry => entry.card.parentElement !== group)) return null;
+        return { group, found };
+      };
+      const applySummaryPreferences = () => {
+        const summary = findSummaryCards();
+        if (!summary) return;
+        const preferences = readSummaryPreferences();
+        summary.group.style.display = preferences.visible ? "" : "none";
+        for (const item of summaryDefinitions) {
+          const entry = summary.found[item.key];
+          entry.card.style.display = preferences.cards[item.key].visible ? "" : "none";
+          if (entry.labelNode.textContent !== preferences.cards[item.key].label) {
+            entry.labelNode.textContent = preferences.cards[item.key].label;
+          }
+        }
+      };
+      const adminCanManageSummary = () => ["stanbax_admin_auth", "stanbax_proprietress_auth"]
+        .some(key => localStorage.getItem(key) === "true" || sessionStorage.getItem(key) === "true");
+      const summaryAdminControlId = "stanbax-summary-schoolwide-admin";
+      const installAdminSummaryControl = () => {
+        let control = document.getElementById(summaryAdminControlId);
+        if (!adminCanManageSummary()) {
+          control?.remove();
+          return;
+        }
+        if (control?.isConnected) return;
+
+        control = document.createElement("aside");
+        control.id = summaryAdminControlId;
+        control.style.cssText = "position:fixed;left:16px;bottom:20px;z-index:10050;font:600 14px Nunito,system-ui,sans-serif;color:#0f172a;";
+        const openButton = document.createElement("button");
+        openButton.type = "button";
+        openButton.textContent = "Student summary display";
+        openButton.style.cssText = "border:1px solid #fbbf24;border-radius:999px;padding:11px 15px;background:#1e3a8a;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 8px 24px #0f172a44;cursor:pointer;";
+        const panel = document.createElement("section");
+        panel.setAttribute("aria-label", "School-wide student summary display settings");
+        panel.style.cssText = "display:none;position:absolute;left:0;bottom:52px;width:min(390px,calc(100vw - 32px));max-height:76vh;overflow:auto;box-sizing:border-box;padding:16px;border:1px solid #cbd5e1;border-radius:16px;background:#fff;box-shadow:0 18px 50px #0f172a44;";
+        const heading = document.createElement("strong");
+        heading.textContent = "School-wide student summary";
+        heading.style.cssText = "display:block;font-size:16px;color:#172554;margin-bottom:4px;";
+        const description = document.createElement("p");
+        description.textContent = "These settings are saved to the shared school database and apply to every student browser.";
+        description.style.cssText = "margin:0 0 12px;color:#475569;font-size:12px;line-height:1.5;";
+        const fields = document.createElement("div");
+        fields.style.cssText = "display:grid;gap:5px;";
+        const status = document.createElement("p");
+        status.setAttribute("role", "status");
+        status.style.cssText = "min-height:18px;margin:8px 0;color:#475569;font-size:12px;";
+        const saveButton = document.createElement("button");
+        saveButton.type = "button";
+        saveButton.textContent = "Save for all users";
+        saveButton.style.cssText = "width:100%;border:0;border-radius:10px;padding:10px;background:#1e3a8a;color:#fff;font:800 14px Nunito,system-ui,sans-serif;cursor:pointer;";
+        const resetButton = document.createElement("button");
+        resetButton.type = "button";
+        resetButton.textContent = "Reset to defaults";
+        resetButton.style.cssText = "width:100%;margin-top:7px;border:1px solid #cbd5e1;border-radius:10px;padding:9px;background:#f8fafc;color:#1e293b;font:700 13px Nunito,system-ui,sans-serif;cursor:pointer;";
+        panel.append(heading, description, fields, status, saveButton, resetButton);
+        openButton.addEventListener("click", () => {
+          const show = panel.style.display === "none";
+          panel.style.display = show ? "block" : "none";
+          if (show) renderAdminFields();
+        });
+        control.append(panel, openButton);
+        document.body.append(control);
+
+        const addCheckbox = (labelText, checked, key) => {
+          const label = document.createElement("label");
+          label.style.cssText = "display:flex;align-items:center;gap:9px;padding:7px 2px;color:#1e293b;cursor:pointer;";
+          const input = document.createElement("input");
+          input.type = "checkbox";
+          input.dataset.preference = key;
+          input.checked = checked;
+          label.append(input, document.createTextNode(labelText));
+          fields.append(label);
+        };
+        const renderAdminFields = () => {
+          const preferences = readSummaryPreferences();
+          fields.replaceChildren();
+          addCheckbox("Show the summary section", preferences.visible, "visible");
+          for (const item of summaryDefinitions) {
+            addCheckbox(`Show ${item.label}`, preferences.cards[item.key].visible, `${item.key}.visible`);
+            const label = document.createElement("label");
+            label.style.cssText = "display:grid;gap:4px;padding:0 0 8px 27px;color:#475569;font-size:12px;";
+            label.append(document.createTextNode(`${item.label} label`));
+            const input = document.createElement("input");
+            input.type = "text";
+            input.maxLength = 32;
+            input.dataset.preference = `${item.key}.label`;
+            input.value = preferences.cards[item.key].label;
+            input.style.cssText = "width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:8px 9px;font:500 14px Nunito,system-ui,sans-serif;";
+            label.append(input);
+            fields.append(label);
+          }
+        };
+        saveButton.addEventListener("click", async () => {
+          const next = defaultSummaryPreferences();
+          next.visible = fields.querySelector('[data-preference="visible"]')?.checked !== false;
+          for (const item of summaryDefinitions) {
+            next.cards[item.key].visible = fields.querySelector(`[data-preference="${item.key}.visible"]`)?.checked !== false;
+            const value = fields.querySelector(`[data-preference="${item.key}.label"]`)?.value?.trim();
+            next.cards[item.key].label = (value || item.label).slice(0, 32);
+          }
+          const token = localStorage.getItem("stanbax_db_session") || sessionStorage.getItem("stanbax_db_session");
+          if (!token) {
+            status.textContent = "Admin cloud session not found. Sign out and back in, then try again.";
+            status.style.color = "#b91c1c";
+            return;
+          }
+          saveButton.disabled = true;
+          status.textContent = "Saving shared setting…";
+          status.style.color = "#475569";
+          try {
+            const response = await fetch(`${url}/rest/v1/rpc/put_states`, {
+              method: "POST",
+              headers: {
+                apikey: anonKey,
+                Authorization: `Bearer ${anonKey}`,
+                "Content-Type": "application/json",
+                "x-stanbax-session": token,
+              },
+              body: JSON.stringify({ p_items: [{ key: summaryStateKey, data: next }] }),
+              signal: AbortSignal.timeout(10000),
+            });
+            if (!response.ok) throw new Error((await response.text()).slice(0, 240) || `HTTP ${response.status}`);
+            originalSetItem(summaryStateKey, JSON.stringify(next));
+            window.dispatchEvent(new StorageEvent("storage", {
+              key: summaryStateKey,
+              oldValue: null,
+              newValue: JSON.stringify(next),
+              storageArea: localStorage,
+              url: window.location.href,
+            }));
+            applySummaryPreferences();
+            status.textContent = "Saved to the school database. It will apply to all users.";
+            status.style.color = "#047857";
+          } catch (error) {
+            status.textContent = `Could not save: ${error?.message || "Cloud request failed."}`;
+            status.style.color = "#b91c1c";
+          } finally {
+            saveButton.disabled = false;
+          }
+        });
+        resetButton.addEventListener("click", () => {
+          fields.querySelector('[data-preference="visible"]').checked = true;
+          for (const item of summaryDefinitions) {
+            fields.querySelector(`[data-preference="${item.key}.visible"]`).checked = true;
+            fields.querySelector(`[data-preference="${item.key}.label"]`).value = item.label;
+          }
+          status.textContent = "Defaults selected. Choose Save for all users to publish them.";
+          status.style.color = "#475569";
+        });
+        renderAdminFields();
+      };
+      const summaryObserver = new MutationObserver(() => {
+        applySummaryPreferences();
+        installAdminSummaryControl();
+      });
+      summaryObserver.observe(document.getElementById("root") || document.body, { childList: true, subtree: true });
+      window.addEventListener("storage", event => {
+        if (event.key === summaryStateKey) applySummaryPreferences();
+        if (event.key === "stanbax_admin_auth" || event.key === "stanbax_proprietress_auth") installAdminSummaryControl();
+      });
+      installAdminSummaryControl();
+      applySummaryPreferences();
+
       const refreshSharedState = async () => {
         if (!url || !anonKey) return;
         try {

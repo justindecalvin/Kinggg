@@ -6,6 +6,8 @@ const site = path.resolve(__dirname, '../recovered-site');
 const html = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
 const bulkImport = fs.readFileSync(path.join(site, 'bulk-results-import.html'), 'utf8');
 const configFunction = fs.readFileSync(path.resolve(__dirname, '../functions/api/config.js'), 'utf8');
+const summaryDisplaySql = fs.readFileSync(path.resolve(__dirname, '../supabase/student_summary_display.sql'), 'utf8');
+const mainSchemaSql = fs.readFileSync(path.resolve(__dirname, '../supabase/schema.sql'), 'utf8');
 const landingSyncSql = fs.readFileSync(path.resolve(__dirname, '../supabase/landing_page_sync.sql'), 'utf8');
 const subjectCatalogSql = fs.readFileSync(path.resolve(__dirname, '../supabase/subjects_catalog_sync.sql'), 'utf8');
 assert(html.includes('id="root"'), 'The archived application entry point is missing.');
@@ -17,6 +19,12 @@ assert(appScript, 'The compiled application script is missing.');
 assert(html.includes('fetch("/api/config"') && html.includes('/rest/v1/school_state?select=key,data'), 'Shared Supabase config and state must load before the app bundle.');
 assert(html.includes('window.setInterval(refreshSharedState, 15000)') && html.includes('new StorageEvent("storage"'), 'Open browsers must periodically receive remote state changes.');
 assert(configFunction.includes('env.SUPABASE_URL') && configFunction.includes('env.SUPABASE_ANON_KEY'), 'The Pages config Function must provide the shared Supabase connection.');
+assert(!html.includes('Customize summary cards') && !html.includes('stanbax_student_summary_display_v1'), 'Browser-local student customization must be removed.');
+for (const feature of ['Student summary display', 'Save for all users', 'stanbax_student_summary_display', 'rest/v1/rpc/put_states', 'stanbax_admin_auth']) {
+  assert(html.includes(feature), `School-wide admin summary control is missing: ${feature}`);
+}
+assert(summaryDisplaySql.includes("'stanbax_student_summary_display'") && summaryDisplaySql.includes('is_public = true'), 'Supabase must expose the shared summary setting to all users.');
+assert(mainSchemaSql.includes("'stanbax_student_summary_display'") && landingSyncSql.includes("('stanbax_student_summary_display', true)"), 'The setting must be represented in the main schema and public-state migration.');
 const appBundle = fs.readFileSync(path.resolve(site, appScript.slice(1)), 'utf8');
 assert(appBundle.includes('Bulk Results Import / Fast Score Entry'), 'The admin portal results importer entry is missing.');
 assert(appBundle.includes('h(`enter_edit_grades`)||h(`collate_publish_results`)'), 'The importer must be visible to admins authorized to edit or publish results.');
