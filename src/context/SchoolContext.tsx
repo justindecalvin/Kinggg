@@ -2003,6 +2003,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         localStorage.setItem('stanbax_classes', JSON.stringify(updated));
       } catch {}
+      void syncStateOnline('stanbax_classes', updated);
       return updated;
     });
   };
@@ -2022,6 +2023,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         localStorage.setItem('stanbax_classes', JSON.stringify(updated));
       } catch {}
+      void syncStateOnline('stanbax_classes', updated);
       return updated;
     });
     // Renaming a class propagates the new display name to every record joined
@@ -2036,6 +2038,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         try {
           localStorage.setItem('stanbax_students', JSON.stringify(updated));
         } catch {}
+        void syncStateOnline('stanbax_students', updated);
         return updated;
       });
       setTimetables(prev => {
@@ -2043,6 +2046,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         try {
           localStorage.setItem('stanbax_weekly_timetables', JSON.stringify(updated));
         } catch {}
+        void syncStateOnline('stanbax_weekly_timetables', updated);
         return updated;
       });
       setAttendanceRecords(prev => {
@@ -2050,6 +2054,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         try {
           localStorage.setItem('stanbax_attendance_records', JSON.stringify(updated));
         } catch {}
+        void syncStateOnline('stanbax_attendance_records', updated);
         return updated;
       });
       setHomeworks(prev => {
@@ -2059,6 +2064,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         try {
           localStorage.setItem('stanbax_homeworks', JSON.stringify(updated));
         } catch {}
+        void syncStateOnline('stanbax_homeworks', updated);
         return updated;
       });
       setCbtExams(prev => {
@@ -2066,6 +2072,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         try {
           localStorage.setItem('stanbax_cbt_exams', JSON.stringify(updated));
         } catch {}
+        void syncStateOnline('stanbax_cbt_exams', updated);
         return updated;
       });
       setLessonNotes(prev => {
@@ -2075,6 +2082,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         try {
           localStorage.setItem('stanbax_lesson_notes', JSON.stringify(updated));
         } catch {}
+        void syncStateOnline('stanbax_lesson_notes', updated);
         return updated;
       });
     }
@@ -2086,6 +2094,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         localStorage.setItem('stanbax_classes', JSON.stringify(updated));
       } catch {}
+      void syncStateOnline('stanbax_classes', updated);
       return updated;
     });
     // Clear the dangling link on enrolled scholars — their `grade` label is
@@ -2095,6 +2104,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         localStorage.setItem('stanbax_students', JSON.stringify(updated));
       } catch {}
+      void syncStateOnline('stanbax_students', updated);
       return updated;
     });
   };
@@ -2104,6 +2114,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       localStorage.removeItem('stanbax_classes');
     } catch {}
+    void syncStateOnline('stanbax_classes', DEFAULT_CLASSES);
   };
 
   const assignClassTeacher = (classId: string, tutorId?: string) => {
