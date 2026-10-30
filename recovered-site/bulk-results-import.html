@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bulk Results Import | Stanbax Schools</title>
+  <style>
+    :root{color-scheme:light;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f8fafc;color:#172033}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;background:linear-gradient(135deg,#fff7ed,#f8fafc 45%,#eef2ff)}
+    .wrap{max-width:1100px;margin:0 auto;padding:28px 18px 60px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:28px}
+    .brand{font-weight:900;letter-spacing:.04em;color:#991b1b}.back{color:#991b1b;text-decoration:none;font-weight:800}.card{background:#fff;border:1px solid #e2e8f0;border-radius:22px;box-shadow:0 18px 55px #0f172a12;padding:24px;margin-bottom:18px}
+    h1{margin:0 0 8px;font-size:clamp(1.7rem,4vw,2.8rem);line-height:1.05}.lead{color:#475569;max-width:760px;line-height:1.6}.drop{border:2px dashed #b91c1c;border-radius:18px;background:#fff7ed;padding:34px;text-align:center;cursor:pointer;transition:.2s}.drop:hover,.drop.drag{background:#fee2e2;border-color:#7f1d1d}.drop strong{display:block;font-size:1.12rem;color:#7f1d1d;margin-bottom:7px}.drop span{color:#64748b;font-size:.92rem}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:11px;padding:11px 15px;font-weight:800;text-decoration:none;cursor:pointer}.primary{background:#991b1b;color:#fff}.secondary{background:#f1f5f9;color:#334155}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:18px}.stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px}.stat b{display:block;font-size:1.35rem;color:#991b1b}.stat small{color:#64748b}.table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:14px;margin-top:18px}table{border-collapse:collapse;width:100%;font-size:.82rem;white-space:nowrap}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #e2e8f0}th{background:#f8fafc;color:#475569}td{color:#334155}.notice{font-size:.9rem;line-height:1.55;color:#475569}.notice strong{color:#172033}.hidden{display:none}.error{color:#b91c1c;font-weight:700;margin-top:12px}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="top"><div class="brand">STANBAX SCHOOLS</div><a class="back" href="/">← Admin portal</a></div>
+    <section class="card">
+      <h1>Bulk Results Import</h1>
+      <p class="lead">Upload the single combined first-and-second-test CSV. This entry point accepts results for multiple classes and previews the records before they are sent through the Continuous Assessment &amp; Results Engine.</p>
+      <label class="drop" id="drop"><strong>Drop the results CSV here</strong><span>or click to choose <code>stanbax_tests_bulk_import.csv</code></span><input class="hidden" id="file" type="file" accept=".csv,text/csv" /></label>
+      <div id="error" class="error hidden"></div>
+      <div id="stats" class="stats hidden"><div class="stat"><b id="rows">0</b><small>result rows</small></div><div class="stat"><b id="students">0</b><small>students</small></div><div class="stat"><b id="classes">0</b><small>classes</small></div><div class="stat"><b id="subjects">0</b><small>subjects</small></div></div>
+      <div class="actions"><a class="button primary" href="/">Return to Admin Portal</a><a class="button secondary" href="https://github.com/justindecalvin/Back/blob/main/stanbax_tests_bulk_import.csv">Get the prepared CSV</a></div>
+    </section>
+    <section class="card"><p class="notice"><strong>Upload rules:</strong> registration numbers and names are matched against the authoritative roster; only 1st Test and 2nd Test are imported; a missing member of a pair is set to 8; and records are grouped by every class in the file. Review this preview, then use the admin engine’s publish action to save to Supabase and distribute to student and parent dashboards.</p><div id="preview" class="table-wrap hidden"></div></section>
+  </main>
+  <script>
+    const drop=document.getElementById('drop'), fileInput=document.getElementById('file'), stats=document.getElementById('stats'), preview=document.getElementById('preview'), error=document.getElementById('error');
+    drop.addEventListener('click',()=>fileInput.click()); ['dragenter','dragover'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.add('drag')})); ['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.remove('drag')})); drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)read(f)}); fileInput.addEventListener('change',e=>{if(e.target.files[0])read(e.target.files[0])});
+    function parse(line){const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&line[i+1]==='"'&&q){cur+='"';i++}else if(c==='"'){q=!q}else if(c===','&&!q){out.push(cur);cur=''}else cur+=c}out.push(cur);return out}
+    function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+    function read(file){error.classList.add('hidden');const r=new FileReader();r.onload=()=>{try{const lines=String(r.result).replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);if(lines.length<2)throw Error('The selected file has no data rows.');const headers=parse(lines[0]);const rows=lines.slice(1).map(parse).map(a=>Object.fromEntries(headers.map((h,i)=>[h,a[i]||''])));const uniq=(k)=>new Set(rows.map(x=>x[k]).filter(Boolean)).size;document.getElementById('rows').textContent=rows.length;document.getElementById('students').textContent=uniq('registration_no');document.getElementById('classes').textContent=uniq('grade_level');document.getElementById('subjects').textContent=uniq('subject');stats.classList.remove('hidden');const show=rows.slice(0,20);preview.innerHTML='<table><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+show.map(row=>'<tr>'+headers.map(h=>'<td>'+esc(row[h])+'</td>').join('')+'</tr>').join('')+'</tbody></table><div style="padding:10px 12px;color:#64748b;font-size:.82rem">Showing the first '+show.length+' rows of '+rows.length+'.</div>';preview.classList.remove('hidden')}catch(e){error.textContent=e.message||'Could not read this CSV.';error.classList.remove('hidden');stats.classList.add('hidden');preview.classList.add('hidden')}};r.readAsText(file)}
+  </script>
+</body>
+</html>

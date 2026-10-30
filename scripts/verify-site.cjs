@@ -4,8 +4,12 @@ const assert = require('node:assert/strict');
 
 const site = path.resolve(__dirname, '../recovered-site');
 const html = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
+const bulkImport = fs.readFileSync(path.join(site, 'bulk-results-import.html'), 'utf8');
 assert(html.includes('id="root"'), 'The archived application entry point is missing.');
 assert(!html.includes('/src/main.tsx'), 'The entry point must reference compiled JavaScript.');
+assert(html.includes('href="/bulk-results-import.html"'), 'The visible bulk-results import launcher is missing.');
+assert(bulkImport.includes('id="file"'), 'The bulk-results file picker is missing.');
+assert(bulkImport.includes('Bulk Results Import'), 'The bulk-results import page is incomplete.');
 
 let checked = 0;
 for (const match of html.matchAll(/(?:src|href)=["'](\/[^"']+)["']/g)) {
@@ -18,4 +22,4 @@ for (const match of html.matchAll(/(?:src|href)=["'](\/[^"']+)["']/g)) {
 }
 assert(checked >= 2, 'The compiled JavaScript and stylesheet must both be present.');
 assert(fs.readFileSync(path.join(site, '_redirects'), 'utf8').includes('/index.html'), 'SPA fallback is missing.');
-console.log(`Archived website verified: ${checked} entry-point assets and SPA routing.`);
+console.log(`Archived website verified: ${checked} entry-point assets, SPA routing, and visible bulk-results import.`);
