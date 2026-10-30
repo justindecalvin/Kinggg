@@ -73,6 +73,15 @@ const COMMON_EXTRA_SUBJECTS = [
   'Yoruba Language'
 ];
 
+const normalizeImportedClassName = (value: string): string => {
+  const clean = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  const senior = clean.match(/^SSS\s*(1|2|3)\s*(.*)$/i);
+  if (!senior) return clean;
+  const stream = senior[2].trim().replace(/\s*&\s*/g, ' & ');
+  return `SSS ${senior[1]}${stream ? ` ${stream}` : ''}`;
+};
+
 export const BatchResultsUploadModal: React.FC<BatchResultsUploadModalProps> = ({
   isOpen,
   onClose,
@@ -928,7 +937,9 @@ SBS/2026/NEW02,Tunde Bakare,SSS 1 Science,${row3}`;
         const rawId = idIdx >= 0 ? (cols[idIdx] || '').trim() : '';
         const rawName = nameIdx >= 0 ? (cols[nameIdx] || '').trim() : '';
         const rawEmail = emailIdx >= 0 ? (cols[emailIdx] || '').trim() : '';
-        const rawGrade = gradeIdx >= 0 && cols[gradeIdx] ? cols[gradeIdx].trim() : defaultGradeFallback;
+        const rawGrade = normalizeImportedClassName(
+          gradeIdx >= 0 && cols[gradeIdx] ? cols[gradeIdx].trim() : defaultGradeFallback
+        );
         const rawSubName = cols[subjectIdx] || 'General Subject';
         const subName = resolveCanonicalSubjectName(rawSubName);
 
@@ -1064,7 +1075,9 @@ SBS/2026/NEW02,Tunde Bakare,SSS 1 Science,${row3}`;
       const rawId = idIdx >= 0 ? (cols[idIdx] || '').trim() : '';
       const rawName = nameIdx >= 0 ? (cols[nameIdx] || '').trim() : '';
       const rawEmail = emailIdx >= 0 ? (cols[emailIdx] || '').trim() : '';
-      const rawGrade = gradeIdx >= 0 && cols[gradeIdx] ? cols[gradeIdx].trim() : defaultGradeFallback;
+      const rawGrade = normalizeImportedClassName(
+        gradeIdx >= 0 && cols[gradeIdx] ? cols[gradeIdx].trim() : defaultGradeFallback
+      );
 
       if (!rawId && !rawName && !rawEmail) continue;
 

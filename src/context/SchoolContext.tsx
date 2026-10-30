@@ -3804,6 +3804,53 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
+    // Derive class records from the uploaded file instead of hardcoding a
+    // student/class roster. Formatting-only differences such as "SSS3 Arts"
+    // and "SSS 3 Arts" are normalized so imported scholars stay editable in
+    // the Classes module and visible in class-filtered portals.
+    const normalizeImportedClassName = (value: unknown): string => {
+      const clean = String(value || '').replace(/\s+/g, ' ').trim();
+      if (!clean) return '';
+      const senior = clean.match(/^SSS\s*(1|2|3)\s*(.*)$/i);
+      if (senior) {
+        const stream = senior[2].trim().replace(/\s*&\s*/g, ' & ');
+        return `SSS ${senior[1]}${stream ? ` ${stream}` : ''}`;
+      }
+      return clean;
+    };
+    const getRecordClassName = (rec: any): string => normalizeImportedClassName(
+      rec?.grade_level || rec?.grade || rec?.class || rec?.class_name
+    );
+    const importedClassNames = Array.from(new Set(records.map(getRecordClassName).filter(Boolean)));
+    const importedClassIds = new Map<string, string>();
+    const missingClasses = importedClassNames.filter(name => {
+      const existing = classes.find(c => c.name.trim().toLowerCase() === name.toLowerCase());
+      if (existing) importedClassIds.set(name.toLowerCase(), existing.id);
+      return !existing;
+    });
+    if (missingClasses.length > 0) {
+      const addedClasses: SchoolClass[] = missingClasses.map((name, index) => ({
+        id: `cls-import-${Date.now()}-${index}`,
+        name,
+        category: /^SSS\b/i.test(name) ? 'Senior Secondary' : /^JSS\b/i.test(name) ? 'Junior Secondary' : 'Primary',
+        tuitionPerTerm: 0,
+        description: 'Created from an uploaded results file; editable in Classes & Fees.',
+        isActive: true,
+      }));
+      const nextClasses = [...classes, ...addedClasses];
+      addedClasses.forEach(cls => importedClassIds.set(cls.name.toLowerCase(), cls.id));
+      setClasses(nextClasses);
+      try {
+        localStorage.setItem('stanbax_classes', JSON.stringify(nextClasses));
+      } catch {}
+      broadcastLocalStateChange('stanbax_classes', nextClasses);
+      void syncStateOnline('stanbax_classes', nextClasses);
+    }
+    const preparedRecords = records.map(rec => {
+      const className = getRecordClassName(rec);
+      return className ? { ...rec, grade_level: className } : rec;
+    });
+
     markLocalMutation();
     let updatedCount = 0;
     let provisionedCount = 0;
@@ -3815,7 +3862,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Step 1: Deduplicate incoming records by registration number / student ID so duplicate CSV rows for the same regNo merge cleanly
     const mergedIncomingMap = new Map<string, any>();
-    records.forEach((rec, idx) => {
+    preparedRecords.forEach((rec, idx) => {
       if (!rec) return;
       const rawId = (
         rec.registration_no ||
@@ -4035,6 +4082,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
 
+      const importedGrade = normalizeImportedClassName(rec.grade_level || rec.grade || rec.class);
+      const importedClassId = importedGrade
+        ? importedClassIds.get(importedGrade.toLowerCase()) || resolveClassId(importedGrade)
+        : undefined;
       if (matched) {
         // Update existing student in-place without creating a duplicate row, stripping any seeded demo subjects first
         const existingGrades: GradeRecord[] = Array.isArray(matched.grades)
@@ -4098,7 +4149,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const updatedStudent: StudentProfile = {
           ...matched,
           name: resolvedName,
-          grade: rec.grade_level || rec.grade || rec.class || matched.grade,
+          grade: importedGrade || matched.grade,
+          classId: importedClassId || matched.classId,
           password: updatedPassword,
           parentName: rec.parent_name || rec.parentName || matched.parentName,
           parentPhone: rec.parent_phone || rec.parentPhone || matched.parentPhone,
@@ -4170,7 +4222,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const newId = `std-batch-${normGeneratedReg || `${Date.now()}-${i + 1}`}`;
         const finalName = rawName || `Student ${generatedReg}`;
         const studentEmail = rawEmail || `${generatedReg.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}@stanbaxschools.edu.ng`;
-        const studentGrade = rec.grade_level || rec.grade || rec.class || 'SSS 1 Science';
+        const studentGrade = importedGrade || 'SSS 1 Science';
+        const studentClassId = importedClassId;
         const customPass = (rec.password && String(rec.password).trim()) ? String(rec.password).trim() : 'stanbax2025';
 
         const formattedGrades: GradeRecord[] = parsedSubjects.map(sub => ({
@@ -4199,6 +4252,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           regNumber: generatedReg,
           name: finalName,
           grade: studentGrade,
+          classId: studentClassId,
           gender: rec.gender === 'Female' ? 'Female' : 'Male',
           parentName: rec.parent_name || rec.parentName || `Guardian of ${finalName}`,
           parentPhone: rec.parent_phone || rec.parentPhone || '+234 800 000 0000',
