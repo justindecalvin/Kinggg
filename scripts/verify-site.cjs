@@ -7,6 +7,7 @@ const html = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
 const bulkImport = fs.readFileSync(path.join(site, 'bulk-results-import.html'), 'utf8');
 const configFunction = fs.readFileSync(path.resolve(__dirname, '../functions/api/config.js'), 'utf8');
 const summaryDisplaySql = fs.readFileSync(path.resolve(__dirname, '../supabase/student_summary_display.sql'), 'utf8');
+const firstLoginPasswordSql = fs.readFileSync(path.resolve(__dirname, '../supabase/student_first_login_password_change.sql'), 'utf8');
 const mainSchemaSql = fs.readFileSync(path.resolve(__dirname, '../supabase/schema.sql'), 'utf8');
 const landingSyncSql = fs.readFileSync(path.resolve(__dirname, '../supabase/landing_page_sync.sql'), 'utf8');
 const subjectCatalogSql = fs.readFileSync(path.resolve(__dirname, '../supabase/subjects_catalog_sync.sql'), 'utf8');
@@ -25,6 +26,13 @@ for (const feature of ['Student summary display', 'Save for all users', 'stanbax
 }
 assert(summaryDisplaySql.includes("'stanbax_student_summary_display'") && summaryDisplaySql.includes('is_public = true'), 'Supabase must expose the shared summary setting to all users.');
 assert(mainSchemaSql.includes("'stanbax_student_summary_display'") && landingSyncSql.includes("('stanbax_student_summary_display', true)"), 'The setting must be represented in the main schema and public-state migration.');
+for (const feature of ['get_password_change_status', 'complete_first_login_password_change', 'Update password and continue', 'p_new_password: next']) {
+  assert(html.includes(feature), `First-login password flow is missing: ${feature}`);
+}
+for (const feature of ['must_change_password', 'password_hash = crypt', 'valid_session()', '[Changed by student]', 'passwordChangedAt']) {
+  assert(firstLoginPasswordSql.includes(feature), `First-login Supabase migration is missing: ${feature}`);
+}
+assert(firstLoginPasswordSql.includes('student_first_login_password_change_v1'), 'The first-login migration must be safely repeatable.');
 const appBundle = fs.readFileSync(path.resolve(site, appScript.slice(1)), 'utf8');
 assert(appBundle.includes('Bulk Results Import / Fast Score Entry'), 'The admin portal results importer entry is missing.');
 assert(appBundle.includes('h(`enter_edit_grades`)||h(`collate_publish_results`)'), 'The importer must be visible to admins authorized to edit or publish results.');

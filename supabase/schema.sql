@@ -44,9 +44,13 @@ CREATE TABLE IF NOT EXISTS public.credentials (
   password_hash TEXT NOT NULL,
   role          TEXT NOT NULL CHECK (role IN ('admin', 'proprietress', 'headmistress', 'moderator', 'tutor', 'student', 'parent')),
   ref_id        TEXT,                          -- App id: stu-1, tut-3, parent-5, admin
+  must_change_password BOOLEAN NOT NULL DEFAULT false,
+  password_changed_at TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE public.credentials ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.credentials ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ;
 
 -- ---------------------------------------------------------------------------
 -- 3. SESSIONS TABLE: Verified login tokens with automatic expiration
@@ -116,6 +120,15 @@ SET search_path = public, extensions, pg_temp AS $$
     SELECT 1 FROM public.sessions s
     WHERE s.token = public.request_session_token()
       AND s.expires_at > now()
+      AND NOT (
+        s.role = 'student'
+        AND EXISTS (
+          SELECT 1 FROM public.credentials c
+          WHERE c.role = 'student'
+            AND c.ref_id = s.ref_id
+            AND c.must_change_password
+        )
+      )
   );
 $$;
 
@@ -390,7 +403,8 @@ BEGIN
   INSERT INTO public.audit_logs (action, entity, actor_ref, actor_role, details)
   VALUES ('LOGIN_SUCCESS', 'sessions', c.ref_id, c.role, jsonb_build_object('identifier', c.identifier));
 
-  RETURN jsonb_build_object('ok', true, 'token', t, 'role', c.role, 'ref_id', c.ref_id);
+  RETURN jsonb_build_object('ok', true, 'token', t, 'role', c.role, 'ref_id', c.ref_id,
+                            'must_change_password', COALESCE(c.must_change_password, false));
 END;
 $$;
 
@@ -453,13 +467,139 @@ BEGIN
 
   UPDATE public.credentials
      SET password_hash = crypt(p_new_password, gen_salt('bf')),
+         must_change_password = false,
+         password_changed_at = now(),
          updated_at = now()
    WHERE id = c.id;
+
+  IF c.role = 'student' THEN
+    UPDATE public.school_state
+       SET data = (
+         SELECT jsonb_agg(
+           CASE WHEN lower(elem->>'id') = lower(c.ref_id)
+                  OR lower(elem->>'regNumber') = lower(c.identifier)
+                THEN jsonb_set(
+                       jsonb_set(
+                         jsonb_set(elem, '{password}', to_jsonb('[Changed by student]'::text), true),
+                         '{passwordChangedAt}', to_jsonb(now()), true),
+                       '{updatedAt}', to_jsonb(now()), true)
+                ELSE elem END
+         )
+         FROM jsonb_array_elements(data) AS elem
+       ),
+       updated_at = now()
+     WHERE key = 'stanbax_students' AND data IS NOT NULL;
+  END IF;
 
   INSERT INTO public.audit_logs (action, entity, actor_ref, actor_role, details)
   VALUES ('PASSWORD_CHANGED', 'credentials', c.ref_id, c.role, jsonb_build_object('identifier', c.identifier, 'changed_by', v_ref));
 
   RETURN jsonb_build_object('ok', true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_password_change_status()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions, pg_temp AS $$
+DECLARE
+  v_role TEXT;
+  v_ref TEXT;
+  v_required BOOLEAN := false;
+BEGIN
+  SELECT s.role, s.ref_id INTO v_role, v_ref
+    FROM public.sessions s
+   WHERE s.token = public.request_session_token()
+     AND s.expires_at > now()
+   LIMIT 1;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Session expired. Sign in again.');
+  END IF;
+  IF v_role = 'student' THEN
+    SELECT c.must_change_password INTO v_required
+      FROM public.credentials c
+     WHERE c.role = 'student' AND c.ref_id = v_ref
+     LIMIT 1;
+  END IF;
+  RETURN jsonb_build_object('ok', true, 'role', v_role,
+                            'required', COALESCE(v_required, false));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.complete_first_login_password_change(
+  p_new_password TEXT,
+  p_confirm_password TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions, pg_temp AS $$
+DECLARE
+  v_role TEXT;
+  v_ref TEXT;
+  v_now TIMESTAMPTZ := now();
+  c RECORD;
+  clean_new_password TEXT := trim(COALESCE(p_new_password, ''));
+  clean_confirm_password TEXT := trim(COALESCE(p_confirm_password, ''));
+BEGIN
+  SELECT s.role, s.ref_id INTO v_role, v_ref
+    FROM public.sessions s
+   WHERE s.token = public.request_session_token()
+     AND s.expires_at > now()
+   LIMIT 1;
+  IF NOT FOUND OR v_role <> 'student' THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'A valid student session is required.');
+  END IF;
+  SELECT * INTO c FROM public.credentials
+   WHERE role = 'student' AND ref_id = v_ref
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Student credential record not found.');
+  END IF;
+  IF NOT c.must_change_password THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'No first-login password change is pending.');
+  END IF;
+  IF length(clean_new_password) < 8 THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Use a password with at least 8 characters.');
+  END IF;
+  IF clean_new_password <> clean_confirm_password THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'The passwords do not match.');
+  END IF;
+  IF c.password_hash = crypt(clean_new_password, c.password_hash) THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Choose a password different from your temporary password.');
+  END IF;
+
+  UPDATE public.credentials
+     SET password_hash = crypt(clean_new_password, gen_salt('bf')),
+         must_change_password = false,
+         password_changed_at = v_now,
+         updated_at = v_now
+   WHERE id = c.id;
+
+  -- The Admin-facing student record gets a masked status only; plaintext passwords
+  -- are never written to school_state or returned to the browser.
+  UPDATE public.school_state
+     SET data = (
+       SELECT jsonb_agg(
+         CASE WHEN lower(COALESCE(elem->>'id', '')) = lower(v_ref)
+                    OR lower(COALESCE(elem->>'regNumber', '')) = lower(c.identifier)
+              THEN jsonb_set(
+                     jsonb_set(
+                       jsonb_set(elem, '{password}', to_jsonb('[Changed by student]'::text), true),
+                       '{passwordChangedAt}', to_jsonb(v_now), true),
+                     '{updatedAt}', to_jsonb(v_now), true)
+              ELSE elem END
+       )
+       FROM jsonb_array_elements(data) AS elem
+     ),
+     updated_at = v_now
+   WHERE key = 'stanbax_students' AND jsonb_typeof(data) = 'array';
+
+  INSERT INTO public.audit_logs (action, entity, actor_ref, actor_role, details)
+  VALUES ('STUDENT_FIRST_PASSWORD_CHANGED', 'credentials', v_ref, 'student',
+          jsonb_build_object('identifier', c.identifier, 'changed_at', v_now));
+  RETURN jsonb_build_object('ok', true, 'message', 'Password updated successfully.');
 END;
 $$;
 
@@ -481,13 +621,15 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'message', 'Access denied: Only administrators may provision or modify credentials.');
   END IF;
 
-  INSERT INTO public.credentials (identifier, aliases, password_hash, role, ref_id, updated_at)
-  VALUES (lower(trim(p_identifier)), p_aliases, crypt(p_password, gen_salt('bf')), p_role, p_ref_id, now())
+  INSERT INTO public.credentials (identifier, aliases, password_hash, role, ref_id, must_change_password, updated_at)
+  VALUES (lower(trim(p_identifier)), p_aliases, crypt(p_password, gen_salt('bf')), p_role, p_ref_id, p_role = 'student', now())
   ON CONFLICT (identifier) DO UPDATE
     SET password_hash = excluded.password_hash,
         aliases       = excluded.aliases,
         role          = excluded.role,
         ref_id        = excluded.ref_id,
+        must_change_password = excluded.must_change_password,
+        password_changed_at = NULL,
         updated_at    = now();
 
   INSERT INTO public.user_roles (session_ref_id, identifier, role)
@@ -838,13 +980,15 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'message', 'Registration credentials incomplete.');
   END IF;
 
-  INSERT INTO public.credentials (identifier, aliases, password_hash, role, ref_id, updated_at)
-  VALUES (clean_id, p_aliases, crypt(clean_pass, gen_salt('bf')), 'student', clean_ref, now())
+  INSERT INTO public.credentials (identifier, aliases, password_hash, role, ref_id, must_change_password, password_changed_at, updated_at)
+  VALUES (clean_id, p_aliases, crypt(clean_pass, gen_salt('bf')), 'student', clean_ref, true, NULL, now())
   ON CONFLICT (identifier) DO UPDATE
     SET password_hash = excluded.password_hash,
         aliases       = excluded.aliases,
         role          = 'student',
         ref_id        = excluded.ref_id,
+        must_change_password = true,
+        password_changed_at = NULL,
         updated_at    = now();
 
   INSERT INTO public.user_roles (session_ref_id, identifier, role)
@@ -1167,6 +1311,8 @@ CREATE POLICY "audit_logs_select_admin" ON public.audit_logs
 GRANT EXECUTE ON FUNCTION public.verify_login(TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.logout_session(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.change_password(TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_password_change_status() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_first_login_password_change(TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reset_password(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_reset_user_password(TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.register_student_credential(TEXT, TEXT, TEXT, TEXT[]) TO anon, authenticated;

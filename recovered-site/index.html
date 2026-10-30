@@ -63,6 +63,150 @@
         }
       }
 
+      // Older builds cached plaintext passwords inside the student profile object.
+      // Keep the app's existing profile cache usable, but scrub those legacy fields.
+      const scrubStudentPassword = student => {
+        if (!student || typeof student !== "object" || !Object.prototype.hasOwnProperty.call(student, "password")) return student;
+        return { ...student, password: "[Password managed securely]" };
+      };
+      try {
+        const students = JSON.parse(localStorage.getItem("stanbax_students") || "null");
+        if (Array.isArray(students)) {
+          originalSetItem("stanbax_students", JSON.stringify(students.map(scrubStudentPassword)));
+        }
+        const activeStudent = JSON.parse(sessionStorage.getItem("stanbax_active_student_cache") || "null");
+        if (activeStudent && typeof activeStudent === "object") {
+          sessionStorage.setItem("stanbax_active_student_cache", JSON.stringify(scrubStudentPassword(activeStudent)));
+        }
+      } catch (error) {
+        console.warn("[Account Security] Could not scrub a legacy cached student password field:", error);
+      }
+
+      const activeDbSession = localStorage.getItem("stanbax_db_session") || sessionStorage.getItem("stanbax_db_session");
+      const authHeaders = token => ({
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        "Content-Type": "application/json",
+        "x-stanbax-session": token,
+      });
+      const showFirstLoginPasswordGate = token => {
+        const overlay = document.createElement("div");
+        overlay.setAttribute("role", "dialog");
+        overlay.setAttribute("aria-modal", "true");
+        overlay.setAttribute("aria-labelledby", "first-login-title");
+        overlay.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:18px;background:linear-gradient(145deg,#0b1635,#172554);font-family:Nunito,system-ui,sans-serif;color:#0f172a;";
+        const card = document.createElement("section");
+        card.style.cssText = "width:min(460px,100%);box-sizing:border-box;padding:26px 22px;border-radius:20px;background:#fff;box-shadow:0 24px 70px #02061799;";
+        const title = document.createElement("h1");
+        title.id = "first-login-title";
+        title.textContent = "Set your new password";
+        title.style.cssText = "margin:0 0 8px;color:#172554;font-size:22px;font-weight:900;";
+        const help = document.createElement("p");
+        help.textContent = "For account security, choose a new password before continuing to your student account. Use at least 8 characters.";
+        help.style.cssText = "margin:0 0 18px;color:#475569;font-size:14px;line-height:1.55;";
+        const form = document.createElement("form");
+        form.style.cssText = "display:grid;gap:12px;";
+        const makePasswordField = (labelText, name) => {
+          const label = document.createElement("label");
+          label.style.cssText = "display:grid;gap:6px;color:#334155;font-size:13px;font-weight:800;";
+          label.append(document.createTextNode(labelText));
+          const input = document.createElement("input");
+          input.type = "password";
+          input.name = name;
+          input.required = true;
+          input.minLength = 8;
+          input.autocomplete = "new-password";
+          input.style.cssText = "width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:12px;font:500 16px system-ui,sans-serif;";
+          label.append(input);
+          return input;
+        };
+        const newPassword = makePasswordField("New password", "new-password");
+        const confirmPassword = makePasswordField("Confirm new password", "confirm-password");
+        const error = document.createElement("p");
+        error.setAttribute("role", "alert");
+        error.style.cssText = "display:none;margin:0;color:#b91c1c;font-size:13px;line-height:1.4;";
+        const submit = document.createElement("button");
+        submit.type = "submit";
+        submit.textContent = "Update password and continue";
+        submit.style.cssText = "margin-top:4px;border:0;border-radius:11px;padding:13px;background:#1e3a8a;color:#fff;font:900 14px Nunito,system-ui,sans-serif;cursor:pointer;";
+        form.append(newPassword.parentElement, confirmPassword.parentElement, error, submit);
+        form.addEventListener("submit", async event => {
+          event.preventDefault();
+          error.style.display = "none";
+          const next = newPassword.value.trim();
+          const confirm = confirmPassword.value.trim();
+          if (next.length < 8) {
+            error.textContent = "Use a password with at least 8 characters.";
+            error.style.display = "block";
+            return;
+          }
+          if (next !== confirm) {
+            error.textContent = "The passwords do not match.";
+            error.style.display = "block";
+            return;
+          }
+          submit.disabled = true;
+          submit.textContent = "Updating securely…";
+          try {
+            const response = await fetch(`${url}/rest/v1/rpc/complete_first_login_password_change`, {
+              method: "POST",
+              headers: authHeaders(token),
+              body: JSON.stringify({ p_new_password: next, p_confirm_password: confirm }),
+              signal: AbortSignal.timeout(15000),
+            });
+            const result = await response.json().catch(() => null);
+            if (!response.ok || result?.ok !== true) throw new Error(result?.message || `Password update failed (HTTP ${response.status}).`);
+
+            // Refresh only the masked Admin-facing student profile. The typed password
+            // is sent to the RPC body and is never written to localStorage/sessionStorage.
+            const profileResponse = await fetch(`${url}/rest/v1/school_state?select=key,data&key=eq.stanbax_students`, {
+              headers: authHeaders(token), cache: "no-store", signal: AbortSignal.timeout(8000),
+            });
+            if (profileResponse.ok) {
+              const [profileRow] = await profileResponse.json();
+              if (profileRow?.data !== undefined) {
+                const oldValue = localStorage.getItem("stanbax_students");
+                const newValue = JSON.stringify(profileRow.data);
+                originalSetItem("stanbax_students", newValue);
+                window.dispatchEvent(new StorageEvent("storage", {
+                  key: "stanbax_students", oldValue, newValue,
+                  storageArea: localStorage, url: window.location.href,
+                }));
+              }
+            }
+            newPassword.value = "";
+            confirmPassword.value = "";
+            overlay.remove();
+          } catch (cause) {
+            error.textContent = cause?.message || "Could not update your password. Check your connection and try again.";
+            error.style.display = "block";
+            submit.disabled = false;
+            submit.textContent = "Update password and continue";
+          }
+        });
+        card.append(title, help, form);
+        overlay.append(card);
+        document.body.append(overlay);
+        setTimeout(() => newPassword.focus(), 0);
+      };
+      if (url && anonKey && activeDbSession) {
+        try {
+          const statusResponse = await fetch(`${url}/rest/v1/rpc/get_password_change_status`, {
+            method: "POST",
+            headers: authHeaders(activeDbSession),
+            body: "{}",
+            cache: "no-store",
+            signal: AbortSignal.timeout(7000),
+          });
+          const status = await statusResponse.json().catch(() => null);
+          if (statusResponse.ok && status?.ok === true && status.role === "student" && status.required === true) {
+            showFirstLoginPasswordGate(activeDbSession);
+          }
+        } catch (error) {
+          console.warn("[Account Security] First-login status could not be checked:", error);
+        }
+      }
+
       await import("/assets/index-oJXusYPh.js");
 
       const summaryStateKey = "stanbax_student_summary_display";
