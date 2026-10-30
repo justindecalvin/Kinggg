@@ -266,10 +266,44 @@
         document.querySelector('[data-stanbax-admin-portal="true"]') &&
         (localStorage.getItem("stanbax_admin_auth") === "true" || sessionStorage.getItem("stanbax_admin_auth") === "true")
       );
+      let adminSettingsTabActive = false;
+      const adminSettingsToolsHostId = "stanbax-admin-school-settings-tools";
+      const getAdminSettingsActionsHost = () => {
+        if (!adminCanManageSummary() || !adminSettingsTabActive) return null;
+        const portal = document.querySelector('[data-stanbax-admin-portal="true"]');
+        const main = portal?.querySelector("main");
+        if (!portal || !main) return null;
+
+        let section = portal.querySelector('[data-stanbax-settings-tools="true"]');
+        if (!section) {
+          section = document.createElement("section");
+          section.dataset.stanbaxSettingsTools = "true";
+          section.setAttribute("aria-label", "School Settings & Signatures admin controls");
+          section.style.cssText = "display:grid;gap:8px;margin:0 0 22px;padding:14px;border:1px solid #f1d28a;border-radius:16px;background:#fffbeb;box-shadow:0 4px 12px #78350f10;";
+          const heading = document.createElement("strong");
+          heading.textContent = "School-wide controls";
+          heading.style.cssText = "color:#78350f;font:800 14px Nunito,system-ui,sans-serif;";
+          const description = document.createElement("p");
+          description.textContent = "Student password requirements and student summary display settings.";
+          description.style.cssText = "margin:0;color:#57534e;font:500 12px/1.5 Nunito,system-ui,sans-serif;";
+          const actions = document.createElement("div");
+          actions.dataset.stanbaxSettingsActions = "true";
+          actions.style.cssText = "display:flex;flex-wrap:wrap;align-items:flex-start;gap:9px;";
+          section.append(heading, description, actions);
+        }
+        if (section.parentElement !== main) main.prepend(section);
+        return section.querySelector('[data-stanbax-settings-actions="true"]');
+      };
       const summaryAdminControlId = "stanbax-summary-schoolwide-admin";
       const installAdminSummaryControl = () => {
         let control = document.getElementById(summaryAdminControlId);
-        if (!adminCanManageSummary()) {
+        if (!adminCanManageSummary() || !adminSettingsTabActive) {
+          control?.remove();
+          document.getElementById(adminSettingsToolsHostId)?.remove();
+          return;
+        }
+        const actionsHost = getAdminSettingsActionsHost();
+        if (!actionsHost) {
           control?.remove();
           return;
         }
@@ -277,14 +311,14 @@
 
         control = document.createElement("aside");
         control.id = summaryAdminControlId;
-        control.style.cssText = "position:fixed;left:16px;bottom:20px;z-index:10050;font:600 14px Nunito,system-ui,sans-serif;color:#0f172a;";
+        control.style.cssText = "position:relative;z-index:1;flex-basis:100%;width:100%;font:600 14px Nunito,system-ui,sans-serif;color:#0f172a;";
         const openButton = document.createElement("button");
         openButton.type = "button";
         openButton.textContent = "Student summary display";
-        openButton.style.cssText = "border:1px solid #fbbf24;border-radius:999px;padding:11px 15px;background:#1e3a8a;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 8px 24px #0f172a44;cursor:pointer;";
+        openButton.style.cssText = "border:1px solid #fbbf24;border-radius:999px;padding:10px 14px;background:#1e3a8a;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 4px 12px #0f172a22;cursor:pointer;";
         const panel = document.createElement("section");
         panel.setAttribute("aria-label", "School-wide student summary display settings");
-        panel.style.cssText = "display:none;position:absolute;left:0;bottom:52px;width:min(390px,calc(100vw - 32px));max-height:76vh;overflow:auto;box-sizing:border-box;padding:16px;border:1px solid #cbd5e1;border-radius:16px;background:#fff;box-shadow:0 18px 50px #0f172a44;";
+        panel.style.cssText = "display:none;position:relative;width:min(390px,100%);max-height:60vh;overflow:auto;box-sizing:border-box;margin-top:10px;padding:16px;border:1px solid #cbd5e1;border-radius:16px;background:#fff;box-shadow:0 8px 24px #0f172a22;";
         const heading = document.createElement("strong");
         heading.textContent = "School-wide student summary";
         heading.style.cssText = "display:block;font-size:16px;color:#172554;margin-bottom:4px;";
@@ -311,7 +345,7 @@
           if (show) renderAdminFields();
         });
         control.append(panel, openButton);
-        document.body.append(control);
+        actionsHost.append(control);
 
         const addCheckbox = (labelText, checked, key) => {
           const label = document.createElement("label");
@@ -404,7 +438,13 @@
       const passwordChangeControlId = "stanbax-admin-force-password-change";
       const installAdminPasswordChangeControl = () => {
         let button = document.getElementById(passwordChangeControlId);
-        if (!adminCanManageSummary()) {
+        if (!adminCanManageSummary() || !adminSettingsTabActive) {
+          button?.remove();
+          document.getElementById(adminSettingsToolsHostId)?.remove();
+          return;
+        }
+        const actionsHost = getAdminSettingsActionsHost();
+        if (!actionsHost) {
           button?.remove();
           return;
         }
@@ -416,7 +456,7 @@
         button.textContent = "Require password change";
         button.setAttribute("aria-label", "Require a student's password to be changed at next sign-in");
         button.title = "Require a selected student to change password at their next sign-in";
-        button.style.cssText = "position:fixed;left:16px;bottom:76px;z-index:10050;border:1px solid #fbbf24;border-radius:999px;padding:11px 15px;background:#b91c1c;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 8px 24px #0f172a44;cursor:pointer;";
+        button.style.cssText = "border:1px solid #fbbf24;border-radius:999px;padding:10px 14px;background:#b91c1c;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 4px 12px #0f172a22;cursor:pointer;";
         button.addEventListener("click", async () => {
           const identifier = window.prompt("Enter the student's exact registration number, login ID, or Student ID:");
           const cleanIdentifier = identifier?.trim();
@@ -452,12 +492,18 @@
             button.textContent = "Require password change";
           }
         });
-        document.body.append(button);
+        actionsHost.append(button);
       };
       const allPasswordChangeControlId = "stanbax-admin-force-all-password-changes";
       const installAdminAllPasswordChangeControl = () => {
         let button = document.getElementById(allPasswordChangeControlId);
-        if (!adminCanManageSummary()) {
+        if (!adminCanManageSummary() || !adminSettingsTabActive) {
+          button?.remove();
+          document.getElementById(adminSettingsToolsHostId)?.remove();
+          return;
+        }
+        const actionsHost = getAdminSettingsActionsHost();
+        if (!actionsHost) {
           button?.remove();
           return;
         }
@@ -469,7 +515,7 @@
         button.textContent = "Require ALL students to change password";
         button.setAttribute("aria-label", "Require all student accounts to change password at next sign-in");
         button.title = "Require all student accounts to change their password the next time they sign in";
-        button.style.cssText = "position:fixed;left:16px;bottom:130px;z-index:10050;max-width:calc(100vw - 32px);border:1px solid #fbbf24;border-radius:999px;padding:11px 15px;background:#7f1d1d;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 8px 24px #0f172a44;cursor:pointer;white-space:normal;text-align:left;";
+        button.style.cssText = "max-width:100%;border:1px solid #fbbf24;border-radius:999px;padding:10px 14px;background:#7f1d1d;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 4px 12px #0f172a22;cursor:pointer;white-space:normal;text-align:left;";
         button.addEventListener("click", async () => {
           if (!window.confirm("This will require every student account to change its password at the next sign-in. Students already signed in may lose access to protected data until they sign in again and change it. Continue?")) return;
 
@@ -502,15 +548,55 @@
             button.textContent = "Require ALL students to change password";
           }
         });
-        document.body.append(button);
+        actionsHost.append(button);
+      };
+      const attachAdminSettingsNavigationTracking = () => {
+        const portal = document.querySelector('[data-stanbax-admin-portal="true"]');
+        if (!portal || portal.dataset.stanbaxSettingsNavTracking === "true") return;
+        portal.dataset.stanbaxSettingsNavTracking = "true";
+        portal.addEventListener("click", event => {
+          const target = event.target instanceof Element ? event.target.closest("button") : null;
+          if (!target) return;
+          const label = (target.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+          const isNavButton = target.classList.contains("w-full") && target.classList.contains("justify-between") && target.classList.contains("px-3") && target.classList.contains("py-2.5");
+          const selectsSettings = label.includes("school settings & signatures") || (label.includes("term resumption") && label.includes("set resumption date"));
+          if (!isNavButton && !selectsSettings) return;
+
+          adminSettingsTabActive = selectsSettings;
+          if (!adminSettingsTabActive) {
+            document.getElementById(summaryAdminControlId)?.remove();
+            document.getElementById(passwordChangeControlId)?.remove();
+            document.getElementById(allPasswordChangeControlId)?.remove();
+            document.getElementById(adminSettingsToolsHostId)?.remove();
+            return;
+          }
+          requestAnimationFrame(() => {
+            installAdminSummaryControl();
+            installAdminPasswordChangeControl();
+            installAdminAllPasswordChangeControl();
+          });
+        }, true);
+        const settingsAlreadySelected = Array.from(portal.querySelectorAll("button")).some(button =>
+          button.textContent?.replace(/\s+/g, " ").trim().toLowerCase().includes("school settings & signatures") && button.classList.contains("bg-red-600")
+        );
+        if (settingsAlreadySelected) {
+          adminSettingsTabActive = true;
+          requestAnimationFrame(() => {
+            installAdminSummaryControl();
+            installAdminPasswordChangeControl();
+            installAdminAllPasswordChangeControl();
+          });
+        }
       };
       const summaryObserver = new MutationObserver(() => {
         applySummaryPreferences();
+        attachAdminSettingsNavigationTracking();
         installAdminSummaryControl();
         installAdminPasswordChangeControl();
         installAdminAllPasswordChangeControl();
       });
       summaryObserver.observe(document.getElementById("root") || document.body, { childList: true, subtree: true });
+      attachAdminSettingsNavigationTracking();
       window.addEventListener("storage", event => {
         if (event.key === summaryStateKey) applySummaryPreferences();
         if (event.key === "stanbax_admin_auth" || event.key === "stanbax_proprietress_auth") {

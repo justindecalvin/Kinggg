@@ -30,6 +30,14 @@ const summaryGateEnd = html.indexOf('const summaryAdminControlId', summaryGateSt
 const summaryGate = html.slice(summaryGateStart, summaryGateEnd);
 assert(summaryGateStart >= 0 && summaryGateEnd > summaryGateStart, 'The school-wide summary control authorization gate is missing.');
 assert(summaryGate.includes('data-stanbax-admin-portal="true"') && summaryGate.includes('stanbax_admin_auth') && !summaryGate.includes('stanbax_proprietress_auth'), 'The summary control must be limited to the authenticated Admin Portal.');
+const adminSettingsToolsStart = html.indexOf('const adminSettingsToolsHostId');
+const adminSettingsToolsEnd = html.indexOf('const refreshSharedState', adminSettingsToolsStart);
+const adminSettingsTools = html.slice(adminSettingsToolsStart, adminSettingsToolsEnd);
+assert(adminSettingsToolsStart >= 0 && adminSettingsToolsEnd > adminSettingsToolsStart, 'The Admin Portal settings controls section is missing.');
+for (const feature of ['School Settings & Signatures admin controls', 'adminSettingsTabActive', 'attachAdminSettingsNavigationTracking', 'main.prepend(section)', 'summaryAdminControlId', 'passwordChangeControlId', 'allPasswordChangeControlId']) {
+  assert(adminSettingsTools.includes(feature), `The controls must be confined to the School Settings & Signatures tab: ${feature}`);
+}
+assert(!adminSettingsTools.includes('position:fixed;left:16px') && !adminSettingsTools.includes('document.body.append(button)'), 'The three admin controls must not float over other portal features.');
 assert(summaryDisplaySql.includes("'stanbax_student_summary_display'") && summaryDisplaySql.includes('is_public = true'), 'Supabase must expose the shared summary setting to all users.');
 assert(mainSchemaSql.includes("'stanbax_student_summary_display'") && landingSyncSql.includes("('stanbax_student_summary_display', true)"), 'The setting must be represented in the main schema and public-state migration.');
 for (const feature of ['get_password_change_status', 'complete_first_login_password_change', 'Update password and continue', 'p_new_password: next']) {
