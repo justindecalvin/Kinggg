@@ -1,0 +1,3 @@
+# Cloudflare Pages deployment configuration
+# The root index.html is the local Vite source entrypoint; recovered-site is the compiled static deployment.
+pages_build_output_dir = "recovered-site"
