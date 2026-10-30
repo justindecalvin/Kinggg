@@ -6,10 +6,11 @@
   <title>Bulk Results Import | Stanbax Schools</title>
   <style>
     :root{color-scheme:light;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f8fafc;color:#172033}
-    *{box-sizing:border-box} body{margin:0;min-height:100vh;background:linear-gradient(135deg,#fff7ed,#f8fafc 45%,#eef2ff)}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(135deg,#fff7ed,#f8fafc 45%,#eef2ff)}
     .wrap{max-width:1100px;margin:0 auto;padding:28px 18px 60px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:28px}
     .brand{font-weight:900;letter-spacing:.04em;color:#991b1b}.back{color:#991b1b;text-decoration:none;font-weight:800}.card{background:#fff;border:1px solid #e2e8f0;border-radius:22px;box-shadow:0 18px 55px #0f172a12;padding:24px;margin-bottom:18px}
-    h1{margin:0 0 8px;font-size:clamp(1.7rem,4vw,2.8rem);line-height:1.05}.lead{color:#475569;max-width:760px;line-height:1.6}.drop{border:2px dashed #b91c1c;border-radius:18px;background:#fff7ed;padding:34px;text-align:center;cursor:pointer;transition:.2s}.drop:hover,.drop.drag{background:#fee2e2;border-color:#7f1d1d}.drop strong{display:block;font-size:1.12rem;color:#7f1d1d;margin-bottom:7px}.drop span{color:#64748b;font-size:.92rem}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:11px;padding:11px 15px;font-weight:800;text-decoration:none;cursor:pointer}.primary{background:#991b1b;color:#fff}.secondary{background:#f1f5f9;color:#334155}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:18px}.stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px}.stat b{display:block;font-size:1.35rem;color:#991b1b}.stat small{color:#64748b}.table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:14px;margin-top:18px}table{border-collapse:collapse;width:100%;font-size:.82rem;white-space:nowrap}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #e2e8f0}th{background:#f8fafc;color:#475569}td{color:#334155}.notice{font-size:.9rem;line-height:1.55;color:#475569}.notice strong{color:#172033}.hidden{display:none}.error{color:#b91c1c;font-weight:700;margin-top:12px}
+    h1{margin:0 0 8px;font-size:clamp(1.7rem,4vw,2.8rem);line-height:1.05}.lead{color:#475569;max-width:760px;line-height:1.6}.drop{display:block;border:2px dashed #b91c1c;border-radius:18px;background:#fff7ed;padding:34px;text-align:center;cursor:pointer;transition:.2s}.drop:hover,.drop.drag{background:#fee2e2;border-color:#7f1d1d}.drop strong{display:block;font-size:1.12rem;color:#7f1d1d;margin-bottom:7px}.drop span{color:#64748b;font-size:.92rem}.hidden{display:none!important}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:11px;padding:11px 15px;font-weight:800;text-decoration:none;cursor:pointer;min-height:44px}.primary{background:#991b1b;color:#fff}.primary:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#f1f5f9;color:#334155}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-top:18px}.stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px}.stat b{display:block;font-size:1.35rem;color:#991b1b}.stat small{color:#64748b}.table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:14px;margin-top:18px}table{border-collapse:collapse;width:100%;font-size:.82rem;white-space:nowrap}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #e2e8f0}th{background:#f8fafc;color:#475569}td{color:#334155}.notice{font-size:.95rem;line-height:1.6;color:#475569;margin:0}.notice strong{color:#172033}.error{color:#b91c1c;font-weight:700;margin-top:12px}.status{margin-top:14px;padding:13px 15px;border-radius:13px;line-height:1.5;font-size:.9rem}.status.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a}.status.success{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}.status.error{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:18px}.step{padding:14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;color:#475569;font-size:.9rem;line-height:1.5}.step b{display:block;color:#172033;margin-bottom:4px}
   </style>
 </head>
 <body>
@@ -17,20 +18,126 @@
     <div class="top"><div class="brand">STANBAX SCHOOLS</div><a class="back" href="/">← Admin portal</a></div>
     <section class="card">
       <h1>Bulk Results Import</h1>
-      <p class="lead">Upload the single combined first-and-second-test CSV. This entry point accepts results for multiple classes and previews the records before they are sent through the Continuous Assessment &amp; Results Engine.</p>
-      <label class="drop" id="drop"><strong>Drop the results CSV here</strong><span>or click to choose <code>stanbax_tests_bulk_import.csv</code></span><input class="hidden" id="file" type="file" accept=".csv,text/csv" /></label>
-      <div id="error" class="error hidden"></div>
+      <p class="lead">Choose the combined results CSV to check its contents, then continue to the secure admin importer to review and save the records.</p>
+      <label class="drop" id="drop" for="file"><strong>Choose or drop the results CSV here</strong><span>Combined first- and second-test file (CSV)</span><input class="hidden" id="file" type="file" accept=".csv,text/csv" /></label>
+      <div id="error" class="status error hidden" role="alert"></div>
+      <div id="status" class="status info" role="status" aria-live="polite">No file selected. Choosing a file only previews it; it is not saved to student records.</div>
       <div id="stats" class="stats hidden"><div class="stat"><b id="rows">0</b><small>result rows</small></div><div class="stat"><b id="students">0</b><small>students</small></div><div class="stat"><b id="classes">0</b><small>classes</small></div><div class="stat"><b id="subjects">0</b><small>subjects</small></div></div>
-      <div class="actions"><a class="button primary" href="/">Return to Admin Portal</a><a class="button secondary" href="https://github.com/justindecalvin/Back/blob/main/stanbax_tests_bulk_import.csv">Get the prepared CSV</a></div>
+      <div class="actions"><a class="button primary" href="/">Open Admin Portal to Import Results</a><a class="button secondary" href="https://github.com/justindecalvin/Back/blob/main/stanbax_tests_bulk_import.csv">Get the prepared CSV</a></div>
     </section>
-    <section class="card"><p class="notice"><strong>Upload rules:</strong> registration numbers and names are matched against the authoritative roster; only 1st Test and 2nd Test are imported; a missing member of a pair is set to 8; and records are grouped by every class in the file. Review this preview, then use the admin engine’s publish action to save to Supabase and distribute to student and parent dashboards.</p><div id="preview" class="table-wrap hidden"></div></section>
+    <section class="card">
+      <p class="notice"><strong>This page only previews the CSV—it does not upload or save results.</strong> To import, open the Admin Portal, sign in, and choose <strong>Fast Score Entry (Bulk CA/Exam)</strong>. Select the CSV again there, choose <strong>1st &amp; 2nd Tests Only</strong> if appropriate, review the reconciliation preview, then press <strong>Execute Bulk Result Import</strong>. The admin importer will show a completion report with the number of student records updated or created. Publishing to student and parent portals is separate and has its own confirmation.</p>
+      <div class="steps"><div class="step"><b>1. Preview this file</b>Check the row count and sample rows here. This does not save anything.</div><div class="step"><b>2. Import in Admin Portal</b>Open Fast Score Entry and select the CSV there; review the matched records before executing.</div><div class="step"><b>3. Confirm the result</b>Use the import audit report to verify records updated or created; publish separately when ready.</div></div>
+      <div id="preview" class="table-wrap hidden"></div>
+    </section>
   </main>
   <script>
-    const drop=document.getElementById('drop'), fileInput=document.getElementById('file'), stats=document.getElementById('stats'), preview=document.getElementById('preview'), error=document.getElementById('error');
-    drop.addEventListener('click',()=>fileInput.click()); ['dragenter','dragover'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.add('drag')})); ['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.remove('drag')})); drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)read(f)}); fileInput.addEventListener('change',e=>{if(e.target.files[0])read(e.target.files[0])});
-    function parse(line){const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&line[i+1]==='"'&&q){cur+='"';i++}else if(c==='"'){q=!q}else if(c===','&&!q){out.push(cur);cur=''}else cur+=c}out.push(cur);return out}
-    function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-    function read(file){error.classList.add('hidden');const r=new FileReader();r.onload=()=>{try{const lines=String(r.result).replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);if(lines.length<2)throw Error('The selected file has no data rows.');const headers=parse(lines[0]);const rows=lines.slice(1).map(parse).map(a=>Object.fromEntries(headers.map((h,i)=>[h,a[i]||''])));const uniq=(k)=>new Set(rows.map(x=>x[k]).filter(Boolean)).size;document.getElementById('rows').textContent=rows.length;document.getElementById('students').textContent=uniq('registration_no');document.getElementById('classes').textContent=uniq('grade_level');document.getElementById('subjects').textContent=uniq('subject');stats.classList.remove('hidden');const show=rows.slice(0,20);preview.innerHTML='<table><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+show.map(row=>'<tr>'+headers.map(h=>'<td>'+esc(row[h])+'</td>').join('')+'</tr>').join('')+'</tbody></table><div style="padding:10px 12px;color:#64748b;font-size:.82rem">Showing the first '+show.length+' rows of '+rows.length+'.</div>';preview.classList.remove('hidden')}catch(e){error.textContent=e.message||'Could not read this CSV.';error.classList.remove('hidden');stats.classList.add('hidden');preview.classList.add('hidden')}};r.readAsText(file)}
+    const drop = document.getElementById('drop');
+    const fileInput = document.getElementById('file');
+    const stats = document.getElementById('stats');
+    const preview = document.getElementById('preview');
+    const error = document.getElementById('error');
+    const status = document.getElementById('status');
+
+    ['dragenter', 'dragover'].forEach(type => drop.addEventListener(type, event => {
+      event.preventDefault();
+      drop.classList.add('drag');
+    }));
+    ['dragleave', 'drop'].forEach(type => drop.addEventListener(type, event => {
+      event.preventDefault();
+      drop.classList.remove('drag');
+    }));
+    drop.addEventListener('drop', event => {
+      const file = event.dataTransfer && event.dataTransfer.files[0];
+      if (file) read(file);
+    });
+    fileInput.addEventListener('change', event => {
+      const file = event.target.files && event.target.files[0];
+      if (file) read(file);
+    });
+
+    function parseCSV(text) {
+      const rows = [];
+      let row = [], cell = '', quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === '"' && quoted && text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else if (char === '"') {
+          quoted = !quoted;
+        } else if (char === ',' && !quoted) {
+          row.push(cell);
+          cell = '';
+        } else if ((char === '\n' || char === '\r') && !quoted) {
+          if (char === '\r' && text[i + 1] === '\n') i++;
+          row.push(cell);
+          if (row.some(value => value.trim())) rows.push(row);
+          row = [];
+          cell = '';
+        } else {
+          cell += char;
+        }
+      }
+      row.push(cell);
+      if (row.some(value => value.trim())) rows.push(row);
+      if (quoted) throw new Error('The CSV contains an unfinished quoted field. Please correct the file and try again.');
+      return rows;
+    }
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    }
+
+    function read(file) {
+      error.classList.add('hidden');
+      stats.classList.add('hidden');
+      preview.classList.add('hidden');
+      status.className = 'status info';
+      status.textContent = `Reading ${file.name}…`;
+      const reader = new FileReader();
+      reader.onerror = () => showError('The selected file could not be read. Please choose it again.');
+      reader.onload = () => {
+        try {
+          const text = String(reader.result || '').replace(/^\uFEFF/, '');
+          const records = parseCSV(text);
+          if (records.length < 2) throw new Error('The selected file has no result rows.');
+          const headers = records[0].map((header, index) => header.trim() || `Column ${index + 1}`);
+          const normalizedHeaders = headers.map(header => header.toLowerCase().replace(/[\s-]+/g, '_'));
+          if (new Set(normalizedHeaders).size !== normalizedHeaders.length) throw new Error('The CSV has duplicate column names. Please make the column names unique.');
+          const data = records.slice(1).map(values => Object.fromEntries(headers.map((header, index) => [header, values[index] || ''])));
+          const findColumn = (...names) => {
+            const index = normalizedHeaders.findIndex(header => names.includes(header));
+            return index < 0 ? null : headers[index];
+          };
+          const studentColumn = findColumn('registration_no', 'registration_number', 'reg_no', 'regnumber', 'student_id', 'studentid', 'full_name', 'name');
+          if (!studentColumn) throw new Error('Could not find a student identifier column. Include registration_no, student_id, or full_name in the CSV header.');
+          const classColumn = findColumn('grade_level', 'grade', 'class');
+          const subjectColumn = findColumn('subject', 'subject_name');
+          document.getElementById('rows').textContent = data.length;
+          document.getElementById('students').textContent = new Set(data.map(record => String(record[studentColumn] || '').trim().toLowerCase()).filter(Boolean)).size;
+          document.getElementById('classes').textContent = classColumn ? new Set(data.map(record => String(record[classColumn] || '').trim()).filter(Boolean)).size : '—';
+          document.getElementById('subjects').textContent = subjectColumn ? new Set(data.map(record => String(record[subjectColumn] || '').trim()).filter(Boolean)).size : '—';
+          stats.classList.remove('hidden');
+          const shown = data.slice(0, 20);
+          preview.innerHTML = '<table><thead><tr>' + headers.map(header => '<th>' + esc(header) + '</th>').join('') + '</tr></thead><tbody>' + shown.map(record => '<tr>' + headers.map(header => '<td>' + esc(record[header]) + '</td>').join('') + '</tr>').join('') + '</tbody></table><div style="padding:10px 12px;color:#64748b;font-size:.82rem">Showing the first ' + shown.length + ' rows of ' + data.length + '.</div>';
+          preview.classList.remove('hidden');
+          status.className = 'status success';
+          status.textContent = `${file.name} is ready for review (${data.length} rows). This is a preview only—the results have not been saved yet.`;
+        } catch (exception) {
+          showError(exception.message || 'Could not read this CSV.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function showError(message) {
+      error.textContent = message;
+      error.classList.remove('hidden');
+      status.className = 'status info';
+      status.textContent = 'No results have been uploaded.';
+    }
+
   </script>
 </body>
 </html>

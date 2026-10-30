@@ -10,6 +10,9 @@ assert(!html.includes('/src/main.tsx'), 'The entry point must reference compiled
 assert(html.includes('href="/bulk-results-import.html"'), 'The visible bulk-results import launcher is missing.');
 assert(bulkImport.includes('id="file"'), 'The bulk-results file picker is missing.');
 assert(bulkImport.includes('Bulk Results Import'), 'The bulk-results import page is incomplete.');
+assert(bulkImport.includes('Open Admin Portal to Import Results'), 'The bulk-results page must link to the actual importer.');
+assert(bulkImport.includes('Fast Score Entry (Bulk CA/Exam)'), 'The page must tell admins where the actual importer is.');
+assert(bulkImport.includes('import audit report'), 'The page must explain where to confirm a completed import.');
 
 let checked = 0;
 for (const match of html.matchAll(/(?:src|href)=["'](\/[^"']+)["']/g)) {
