@@ -167,6 +167,22 @@ export const BatchResultsUploadModal: React.FC<BatchResultsUploadModalProps> = (
   // TAB 1 STATE: DATABASE DOWNLOAD & INTERACTIVE 1ST / 2ND TEST SPACES
   // =========================================================================
   const [dbClassFilter, setDbClassFilter] = useState<string>('all');
+  const classFilterOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    (classes || []).forEach(cls => {
+      const name = (cls?.name || '').replace(/\s+/g, ' ').trim();
+      if (name && !names.has(name.toLocaleLowerCase())) names.set(name.toLocaleLowerCase(), name);
+    });
+    // Older student records may only have a grade label and no catalog class link.
+    (students || []).forEach(student => {
+      if (student?.classId) return;
+      const name = (student?.grade || '').replace(/\s+/g, ' ').trim();
+      if (name && !names.has(name.toLocaleLowerCase())) names.set(name.toLocaleLowerCase(), name);
+    });
+    return Array.from(names.values()).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })
+    );
+  }, [classes, students]);
   // Default to 'split_tests' so every subject has explicit 1st Test and 2nd Test spaces/columns
   const [dbLayoutMode, setDbLayoutMode] = useState<'single_column' | 'split_tests'>('split_tests');
   const [dbSelectedSubjects, setDbSelectedSubjects] = useState<string[]>(() =>
@@ -211,10 +227,15 @@ export const BatchResultsUploadModal: React.FC<BatchResultsUploadModalProps> = (
   // Filter and deduplicate students by registration number for database export
   const exportStudents = useMemo(() => {
     const seenRegs = new Set<string>();
+    const selectedClass = (classes || []).find(cls =>
+      cls.name?.trim().toLocaleLowerCase() === dbClassFilter.trim().toLocaleLowerCase()
+    );
     return students.filter(s => {
       if (!s || s.isUpgradedTutor) return false;
-      if (dbClassFilter !== 'all' && s.grade?.toLowerCase().trim() !== dbClassFilter.toLowerCase().trim()) {
-        return false;
+      if (dbClassFilter !== 'all') {
+        const matchesClassId = Boolean(selectedClass && s.classId === selectedClass.id);
+        const matchesGrade = s.grade?.trim().toLocaleLowerCase() === dbClassFilter.trim().toLocaleLowerCase();
+        if (!matchesClassId && !matchesGrade) return false;
       }
       const regKey = normalizeRegForUpsert(s.regNumber || s.id);
       if (regKey) {
@@ -223,7 +244,7 @@ export const BatchResultsUploadModal: React.FC<BatchResultsUploadModalProps> = (
       }
       return true;
     });
-  }, [students, dbClassFilter]);
+  }, [students, classes, dbClassFilter]);
 
   // Helper to get current or edited 1st & 2nd test score for a student + subject
   const getStudentSubjectTestScores = (st: (typeof students)[number], subjectName: string): { ca1: string; ca2: string } => {
@@ -1783,8 +1804,8 @@ SBS/2026/NEW01,Chioma Nwachukwu,SSS 1 Science,${r3}`;
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-900 focus:ring-2 focus:ring-blue-600 outline-none"
                     >
                       <option value="all">All Enrolled Classes ({exportStudents.length} scholars)</option>
-                      {classes.map(c => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
+                      {classFilterOptions.map(className => (
+                        <option key={className.toLocaleLowerCase()} value={className}>{className}</option>
                       ))}
                     </select>
                   </div>
