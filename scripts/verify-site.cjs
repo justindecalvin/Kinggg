@@ -7,7 +7,11 @@ const html = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
 const bulkImport = fs.readFileSync(path.join(site, 'bulk-results-import.html'), 'utf8');
 assert(html.includes('id="root"'), 'The archived application entry point is missing.');
 assert(!html.includes('/src/main.tsx'), 'The entry point must reference compiled JavaScript.');
-assert(html.includes('href="/bulk-results-import.html"'), 'The visible bulk-results import launcher is missing.');
+assert(!html.includes('bulk-results-import.html') && !html.includes('Bulk Results Import'), 'The public homepage must not expose the bulk-results importer.');
+const appScript = html.match(/src=["'](\/[^"']+\.js)["']/)?.[1];
+assert(appScript, 'The compiled application script is missing.');
+const appBundle = fs.readFileSync(path.resolve(site, appScript.slice(1)), 'utf8');
+assert(appBundle.includes('Fast Score Entry (Bulk CA/Exam)'), 'The admin portal results importer entry is missing.');
 assert(bulkImport.includes('id="file"'), 'The bulk-results file picker is missing.');
 assert(bulkImport.includes('Bulk Results Import'), 'The bulk-results import page is incomplete.');
 assert(bulkImport.includes('Open Admin Portal to Import Results'), 'The bulk-results page must link to the actual importer.');
@@ -25,4 +29,4 @@ for (const match of html.matchAll(/(?:src|href)=["'](\/[^"']+)["']/g)) {
 }
 assert(checked >= 2, 'The compiled JavaScript and stylesheet must both be present.');
 assert(fs.readFileSync(path.join(site, '_redirects'), 'utf8').includes('/index.html'), 'SPA fallback is missing.');
-console.log(`Archived website verified: ${checked} entry-point assets, SPA routing, and visible bulk-results import.`);
+console.log(`Archived website verified: ${checked} entry-point assets, SPA routing, and admin-only results import entry.`);
