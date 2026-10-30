@@ -454,10 +454,61 @@
         });
         document.body.append(button);
       };
+      const allPasswordChangeControlId = "stanbax-admin-force-all-password-changes";
+      const installAdminAllPasswordChangeControl = () => {
+        let button = document.getElementById(allPasswordChangeControlId);
+        if (!adminCanManageSummary()) {
+          button?.remove();
+          return;
+        }
+        if (button?.isConnected) return;
+
+        button = document.createElement("button");
+        button.id = allPasswordChangeControlId;
+        button.type = "button";
+        button.textContent = "Require ALL students to change password";
+        button.setAttribute("aria-label", "Require all student accounts to change password at next sign-in");
+        button.title = "Require all student accounts to change their password the next time they sign in";
+        button.style.cssText = "position:fixed;left:16px;bottom:130px;z-index:10050;max-width:calc(100vw - 32px);border:1px solid #fbbf24;border-radius:999px;padding:11px 15px;background:#7f1d1d;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 8px 24px #0f172a44;cursor:pointer;white-space:normal;text-align:left;";
+        button.addEventListener("click", async () => {
+          if (!window.confirm("This will require every student account to change its password at the next sign-in. Students already signed in may lose access to protected data until they sign in again and change it. Continue?")) return;
+
+          const token = localStorage.getItem("stanbax_db_session") || sessionStorage.getItem("stanbax_db_session");
+          if (!url || !anonKey || !token) {
+            window.alert("A Supabase admin session is required. Sign out and back into the Admin Portal, then try again.");
+            return;
+          }
+
+          button.disabled = true;
+          button.textContent = "Requiring all students…";
+          try {
+            const response = await fetch(`${url}/rest/v1/rpc/admin_require_all_students_password_change`, {
+              method: "POST",
+              headers: authHeaders(token),
+              body: JSON.stringify({}),
+              cache: "no-store",
+              signal: AbortSignal.timeout(20000),
+            });
+            const result = await response.json().catch(() => null);
+            if (!response.ok || result?.ok !== true) {
+              throw new Error(result?.message || `Supabase request failed (HTTP ${response.status}).`);
+            }
+            await refreshSharedState();
+            window.alert(result.message || `${result.total_students || 0} student accounts now require a password change at next sign-in.`);
+          } catch (error) {
+            window.alert(`Could not update Supabase: ${error?.message || "Connection failed."}\nRun admin_force_student_password_change.sql in the Supabase SQL Editor if this RPC is not installed.`);
+          } finally {
+            button.disabled = false;
+            button.textContent = "Require ALL students to change password";
+          }
+        });
+        document.body.append(button);
+      };
       const summaryObserver = new MutationObserver(() => {
         applySummaryPreferences();
         installAdminSummaryControl();
         installAdminPasswordChangeControl();
+        installAdminAllPasswordChangeControl();
       });
       summaryObserver.observe(document.getElementById("root") || document.body, { childList: true, subtree: true });
       window.addEventListener("storage", event => {
@@ -465,10 +516,12 @@
         if (event.key === "stanbax_admin_auth" || event.key === "stanbax_proprietress_auth") {
           installAdminSummaryControl();
           installAdminPasswordChangeControl();
+          installAdminAllPasswordChangeControl();
         }
       });
       installAdminSummaryControl();
       installAdminPasswordChangeControl();
+      installAdminAllPasswordChangeControl();
       applySummaryPreferences();
 
       const refreshSharedState = async () => {

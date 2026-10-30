@@ -46,6 +46,17 @@ for (const feature of ['public.valid_session()', "v_actor_role <> 'admin'", 'mus
   assert(adminPasswordTriggerSql.includes(feature), `The admin password-change RPC is missing its security/data behavior: ${feature}`);
 }
 assert(mainSchemaSql.includes('admin_require_student_password_change'), 'Fresh Supabase schema installs must include the admin password-change RPC.');
+const allStudentControlStart = html.indexOf('const allPasswordChangeControlId');
+const allStudentControlEnd = html.indexOf('const summaryObserver', allStudentControlStart);
+const allStudentControl = html.slice(allStudentControlStart, allStudentControlEnd);
+assert(allStudentControlStart >= 0 && allStudentControlEnd > allStudentControlStart, 'The all-students password-change button is missing.');
+for (const feature of ['Require ALL students to change password', 'window.confirm(', 'admin_require_all_students_password_change', 'stanbax_admin_auth']) {
+  assert(allStudentControl.includes(feature) || html.includes(feature), `The all-students admin action is missing: ${feature}`);
+}
+for (const feature of ['public.valid_session()', "v_actor_role <> 'admin'", "WHERE role = 'student'", 'must_change_password = TRUE', 'ALL_STUDENT_PASSWORD_CHANGE_REQUIRED']) {
+  assert(adminPasswordTriggerSql.includes(feature), `The bulk Supabase RPC is missing its authorization or update behavior: ${feature}`);
+}
+assert(mainSchemaSql.includes('admin_require_all_students_password_change'), 'Fresh Supabase schema installs must include the all-students password-change RPC.');
 const appBundle = fs.readFileSync(path.resolve(site, appScript.slice(1)), 'utf8');
 assert(appBundle.includes('data-stanbax-admin-portal'), 'The deployed Admin Portal must expose the marker used by the summary-control gate.');
 assert(appBundle.includes('Bulk Results Import / Fast Score Entry'), 'The admin portal results importer entry is missing.');
