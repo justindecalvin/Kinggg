@@ -50,10 +50,23 @@
           });
           if (response.ok) {
             const rows = await response.json();
+            // Session, auth, password and routing state is DEVICE-LOCAL. It must
+            // never be hydrated from the shared database, otherwise every browser
+            // inherits the last admin's session flags and lands in the admin portal.
+            const hydrateSkip = new Set(["stanbax_db_session","stanbax_supabase_url","stanbax_supabase_anon_key","stanbax_active_section","stanbax_active_admin_id","stanbax_student_id","stanbax_tutor_id","stanbax_moderator_id","stanbax_parent_id","stanbax_resume_section"]);
+            const isAuthStateKey = key => key.startsWith("stanbax_") && (key.endsWith("_auth") || key.endsWith("_password"));
             for (const row of rows) {
-              if (row && typeof row.key === "string" && row.data !== null && row.data !== undefined) {
-                localStorage.setItem(row.key, JSON.stringify(row.data));
+              if (!row || typeof row.key !== "string" || row.data === null || row.data === undefined) continue;
+              if (hydrateSkip.has(row.key) || isAuthStateKey(row.key)) continue;
+              if (row.key === "stanbax_students") {
+                // The app merges cloud and local rosters itself; never let a smaller
+                // cloud list clobber a larger local one before that merge can run.
+                try {
+                  const localStudents = JSON.parse(localStorage.getItem("stanbax_students") || "null");
+                  if (Array.isArray(localStudents) && localStudents.length > 0) continue;
+                } catch (mergeGuardError) { /* fall through and hydrate */ }
               }
+              localStorage.setItem(row.key, JSON.stringify(row.data));
             }
           } else {
             console.warn("[Cloud Sync] Shared state read failed:", response.status);
@@ -826,8 +839,11 @@
           });
           if (!response.ok) return;
           const rows = await response.json();
+          const refreshSkip = new Set(["stanbax_db_session","stanbax_supabase_url","stanbax_supabase_anon_key","stanbax_active_section","stanbax_active_admin_id","stanbax_student_id","stanbax_tutor_id","stanbax_moderator_id","stanbax_parent_id","stanbax_resume_section"]);
+          const isAuthStateKey = key => key.startsWith("stanbax_") && (key.endsWith("_auth") || key.endsWith("_password"));
           for (const row of rows) {
             if (!row || typeof row.key !== "string" || row.data === null || row.data === undefined) continue;
+            if (refreshSkip.has(row.key) || isAuthStateKey(row.key)) continue;
             const nextValue = JSON.stringify(row.data);
             const oldValue = localStorage.getItem(row.key);
             if (oldValue === nextValue) continue;
