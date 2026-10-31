@@ -985,6 +985,9 @@ BEGIN
 END;
 $$;
 
+-- Existing projects may have put_states(jsonb) with a different return type.
+-- PostgreSQL cannot change a function return type via CREATE OR REPLACE.
+DROP FUNCTION IF EXISTS public.put_states(JSONB);
 CREATE OR REPLACE FUNCTION public.put_states(p_items JSONB)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -1863,5 +1866,4 @@ END;
 $$;
 
 COMMIT;
-
 
