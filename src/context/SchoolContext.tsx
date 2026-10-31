@@ -12044,6 +12044,12 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (parsed && typeof parsed === 'object') setAssessmentConfig(prev => ({ ...prev, ...parsed }));
         } catch {}
       }
+      if (e.key === 'stanbax_official_signatures' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && typeof parsed === 'object') setOfficialSignatures(prev => ({ ...prev, ...parsed }));
+        } catch {}
+      }
     };
 
     // Live custom event fired on realtime cloud sync or broadcast
@@ -12088,6 +12094,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setStudents(deduplicateStudentsByRegistration(data));
       } else if (key === 'stanbax_assessment_config' && data && typeof data === 'object') {
         setAssessmentConfig(prev => ({ ...prev, ...data }));
+      } else if (key === 'stanbax_official_signatures' && data && typeof data === 'object') {
+        setOfficialSignatures(prev => ({ ...prev, ...data }));
       } else if (key === 'stanbax_house_standings' && Array.isArray(data)) {
         setHouseStandings(data);
       } else if (key === 'stanbax_landing_sections' && data && typeof data === 'object') {

@@ -838,6 +838,18 @@
       window.addEventListener("storage", event => {
         if (event.key === "stanbax_admin_auth") installRenameCredentialControl();
       });
+      const refreshStudentPortalForOfficialSignatures = event => {
+        if (event?.detail?.key !== "stanbax_official_signatures") return;
+        if (localStorage.getItem("stanbax_active_section") === "student-portal") {
+          window.location.reload();
+        }
+      };
+      window.addEventListener("stanbax_cloud_state_changed", refreshStudentPortalForOfficialSignatures);
+      window.addEventListener("storage", event => {
+        if (event.key === "stanbax_official_signatures" && event.newValue && localStorage.getItem("stanbax_active_section") === "student-portal") {
+          window.location.reload();
+        }
+      });
 
       const refreshSharedState = async () => {
         if (!url || !anonKey) return;
