@@ -167,8 +167,9 @@ GRANT EXECUTE ON FUNCTION public.delete_credential(TEXT, TEXT) TO anon, authenti
 --    people can never sign in through a seeded name again
 -- ---------------------------------------------------------------------------
 UPDATE public.credentials
-   SET aliases = aliases - ARRAY['mrs.adediran', 'mrs.bello', 'adebisi.bello', 'kehinde.badmus']
- WHERE aliases && ARRAY['mrs.adediran', 'mrs.bello', 'adebisi.bello', 'kehinde.badmus'];
+   SET aliases = array_remove(array_remove(array_remove(array_remove(
+                  aliases, 'mrs.adediran'), 'mrs.bello'), 'adebisi.bello'), 'kehinde.badmus')
+ WHERE aliases && ARRAY['mrs.adediran', 'mrs.bello', 'adebisi.bello', 'kehinde.badmus']::text[];
 
 -- Re-assert the canonical, role-generic alias lists (idempotent)
 UPDATE public.credentials
