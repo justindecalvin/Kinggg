@@ -22,6 +22,13 @@ import {
 import { useSchool } from '../../../context/SchoolContext';
 import { isRemoteEnabled, configureSupabaseCredentials, syncLocalSchoolStateToSupabase } from '../../../lib/supabase';
 import schemaSql from '../../../../supabase/schema.sql?raw';
+import {
+  parseBackupJson,
+  readRestoreGuard,
+  readLastRestoreReport,
+  clearRestoreGuard,
+  type RestoreResult,
+} from '../../../lib/backupRestore';
 
 interface NetlifyCloudSyncModalProps {
   isOpen: boolean;
@@ -38,6 +45,10 @@ export const NetlifyCloudSyncModal: React.FC<NetlifyCloudSyncModalProps> = ({
   const [copiedSchema, setCopiedSchema] = useState(false);
   const [importStatus, setImportStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importStage, setImportStage] = useState<string>('');
+  const [importReport, setImportReport] = useState<RestoreResult | null>(null);
+  const [guardActive, setGuardActive] = useState<boolean>(() => !!readRestoreGuard());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [directUrl, setDirectUrl] = useState(() => {
@@ -143,31 +154,83 @@ export const NetlifyCloudSyncModal: React.FC<NetlifyCloudSyncModalProps> = ({
     }
   };
 
+  const runRestore = async (rawText: string) => {
+    setImportReport(null);
+    setImportStatus(null);
+
+    // Validate the file BEFORE touching any state, so a bad file can never
+    // leave the app half-restored.
+    const parsed = parseBackupJson(rawText);
+    if (!parsed.ok) {
+      setImportStatus({ success: false, message: parsed.error || 'This file cannot be restored.' });
+      return;
+    }
+
+    const scholars = Array.isArray(parsed.snapshot.students) ? parsed.snapshot.students.length : 0;
+    setIsImporting(true);
+    setImportStage(
+      `Validated backup: ${scholars} scholars, ${
+        Array.isArray(parsed.snapshot.subjects) ? parsed.snapshot.subjects.length : 0
+      } subjects, ${parsed.recognized.length} collections. Restoring...`
+    );
+
+    try {
+      // Local cache first - instant, and survives a cloud failure.
+      const localOnly = await importDatabaseSnapshot(rawText);
+      if (!localOnly.success && localOnly.message?.startsWith('Failed to import database')) {
+        setImportStatus({ success: false, message: localOnly.message });
+        setIsImporting(false);
+        return;
+      }
+
+      // importDatabaseSnapshot already wrote the snapshot to localStorage, pushed
+      // it to Supabase and read it back for verification. Reuse that single run.
+      const result = readLastRestoreReport();
+      setImportReport(result);
+      setGuardActive(!!readRestoreGuard());
+      setImportStatus({ success: localOnly.success, message: localOnly.message });
+
+      if (localOnly.success) {
+        setImportStage('Verified in Supabase. Reloading with the restored roster...');
+        setTimeout(() => window.location.reload(), 2500);
+      } else {
+        setImportStage(
+          'Supabase did not accept the whole backup. Your restored records are kept in this browser and the reload will not overwrite them.'
+        );
+      }
+      if (localOnly.details?.length) {
+        setImportStage(prev => `${prev} (${localOnly.details![0]})`);
+      }
+    } catch (err: any) {
+      setImportStatus({
+        success: false,
+        message: 'Restore failed: ' + (err?.message || 'unknown error'),
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Clear the input first so re-selecting the same file always re-triggers.
+    e.target.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = '';
 
     const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        setImportStatus({ success: true, message: 'Restoring backup data and synchronizing scholars with Supabase cloud database...' });
-        const text = event.target?.result as string;
-        const result = await importDatabaseSnapshot(text);
-        setImportStatus(result);
-        if (result.success) {
-          setTimeout(() => {
-            window.location.reload();
-          }, 3500);
-        }
-      } catch (err: any) {
-        setImportStatus({
-          success: false,
-          message: 'Could not read backup file: ' + (err?.message || 'Invalid format')
-        });
+    reader.onerror = () => {
+      setImportStatus({ success: false, message: 'The browser could not read that file. Try re-downloading the backup.' });
+    };
+    reader.onload = async event => {
+      const text = event.target?.result;
+      if (typeof text !== 'string') {
+        setImportStatus({ success: false, message: 'The selected file could not be read as text.' });
+        return;
       }
+      await runRestore(text);
     };
     reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -493,12 +556,55 @@ export const NetlifyCloudSyncModal: React.FC<NetlifyCloudSyncModalProps> = ({
               </div>
             </div>
 
+            {(isImporting || importStage) && (
+              <div className="p-3 rounded-xl text-xs font-semibold flex items-start gap-2 bg-stone-100 text-stone-800 border border-stone-300">
+                <RefreshCw className={`w-4 h-4 shrink-0 mt-0.5 ${isImporting ? 'animate-spin text-amber-600' : 'text-stone-500'}`} />
+                <span>{importStage}</span>
+              </div>
+            )}
+
             {importStatus && (
-              <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+              <div className={`p-3 rounded-xl text-xs font-semibold flex items-start gap-2 ${
                 importStatus.success ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-rose-100 text-rose-900 border border-rose-300'
               }`}>
-                {importStatus.success ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 text-rose-600" />}
+                {importStatus.success ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" /> : <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
                 <span>{importStatus.message}</span>
+              </div>
+            )}
+
+            {importReport && importReport.verification.length > 0 && (
+              <div className="p-3 rounded-xl bg-white border border-stone-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-stone-700">
+                    Supabase read-back verification
+                  </span>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                    importReport.verified
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'bg-rose-50 text-rose-700 border-rose-300'
+                  }`}>
+                    {importReport.verified ? 'ALL COLLECTIONS MATCH' : `${importReport.failedKeys.length} FAILED`}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto">
+                  {importReport.verification.map(row => (
+                    <div key={row.key} className="flex items-center justify-between gap-2 text-[11px] font-mono px-2 py-1 rounded bg-stone-50 border border-stone-200">
+                      <span className="text-stone-600 truncate">{row.key.replace('stanbax_', '')}</span>
+                      <span className={row.ok ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
+                        {row.expected === null ? (row.ok ? 'ok' : 'missing') : `${row.actual}/${row.expected}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {importReport.credentials && (
+                  <p className="text-[11px] text-stone-600">
+                    Scholar logins: {importReport.credentials.preserved} existing password(s) preserved,{' '}
+                    {importReport.credentials.created} new login(s) created with a temporary password.
+                  </p>
+                )}
+                {importReport.errors.length > 0 && (
+                  <p className="text-[11px] text-rose-700 break-words">{importReport.errors[0]}</p>
+                )}
               </div>
             )}
 
@@ -524,16 +630,38 @@ export const NetlifyCloudSyncModal: React.FC<NetlifyCloudSyncModalProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white hover:bg-amber-100/60 text-stone-900 border border-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                disabled={isImporting}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white hover:bg-amber-100/60 text-stone-900 border border-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Upload className="w-4 h-4 text-stone-600" />
-                <span>Import Backup to This Browser</span>
+                <Upload className={`w-4 h-4 text-stone-600 ${isImporting ? 'animate-pulse' : ''}`} />
+                <span>{isImporting ? 'Restoring & verifying...' : 'Import Backup (Restore to Supabase)'}</span>
               </button>
 
               <div className="text-[11px] text-stone-500 italic">
                 Current Records: {students.length} students, {tutors.length} tutors, {classes.length} classes
               </div>
             </div>
+
+            {guardActive && (
+              <div className="p-2.5 rounded-xl bg-amber-100/70 border border-amber-300 text-[11px] text-amber-950 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span>
+                    <strong>Local copy is protected.</strong> Supabase did not accept the whole backup, so the restored
+                    records are being kept in this browser and will not be overwritten by the cloud on reload. Connect
+                    Supabase, run <code className="font-mono">supabase/restore_backup_snapshot.sql</code>, then import the
+                    same file again to make it permanent.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { clearRestoreGuard(); setGuardActive(false); }}
+                    className="underline font-bold cursor-pointer"
+                  >
+                    Dismiss protection
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

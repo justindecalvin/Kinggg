@@ -991,6 +991,30 @@ export const installLocalStorageSync = (): void => {
 // private rows unlock after login.
 // ---------------------------------------------------------------------------
 
+// A restore that could not be written to the cloud must not be wiped by the
+// next hydration (this was the "data shows for a few seconds then disappears"
+// bug). While the guard is armed, hydration leaves those keys alone.
+const RESTORE_GUARD_KEY = 'stanbax_restore_guard_v1';
+const RESTORE_GUARD_TTL_MS = 30 * 60 * 1000;
+
+const isRestoreProtectedKey = (key: string): boolean => {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    const raw = localStorage.getItem(RESTORE_GUARD_KEY);
+    if (!raw) return false;
+    const guard = JSON.parse(raw) as { at?: number; keys?: string[] };
+    if (!guard || typeof guard.at !== 'number') return false;
+    if (Date.now() - guard.at > RESTORE_GUARD_TTL_MS) {
+      localStorage.removeItem(RESTORE_GUARD_KEY);
+      return false;
+    }
+    if (!Array.isArray(guard.keys) || guard.keys.length === 0) return true;
+    return guard.keys.includes(key);
+  } catch {
+    return false;
+  }
+};
+
 export const hydrateFromSupabase = async (): Promise<void> => {
   if (!supabase) return;
   try {
@@ -1033,6 +1057,9 @@ export const hydrateFromSupabase = async (): Promise<void> => {
       // Write remote rows to localStorage, ensuring deleted accounts & duplicates are never written
       for (const [key, val] of rowMap.entries()) {
         if (key === 'stanbax_navbar_content' || key === 'stanbax_footer_content') continue;
+        // Keep locally restored data that the cloud rejected, instead of
+        // overwriting it with the stale row seconds after the restore.
+        if (isRestoreProtectedKey(key)) continue;
         let dataToWrite = val;
         if (key === 'stanbax_students' && Array.isArray(val)) {
           dataToWrite = deduplicateStudentsByRegistration(val, deletedSet);

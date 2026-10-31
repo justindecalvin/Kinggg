@@ -25,6 +25,7 @@ import {
   isSeededDemoGrade,
   stripDemoGradesFromStudent,
 } from '../lib/supabase';
+import { persistRestoreToSupabase } from '../lib/backupRestore';
 import { 
   AppImages, 
   Notice, 
@@ -694,7 +695,7 @@ interface SchoolContextType {
 
   // 18. Complete Database Resilience (Zero Data Loss on Free Hosting: Vercel / GitHub)
   exportDatabaseSnapshot: () => string;
-  importDatabaseSnapshot: (jsonData: string) => Promise<{ success: boolean; message: string; recordCounts?: Record<string, number> }>;
+  importDatabaseSnapshot: (jsonData: string) => Promise<{ success: boolean; message: string; recordCounts?: Record<string, number>; cloudOk?: boolean; verified?: boolean; written?: number; failedKeys?: string[]; details?: string[] }>;
 
   // 19. Attendance & Term Resumption Management
   attendanceRecords: AttendanceDailyRecord[];
@@ -8487,7 +8488,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return JSON.stringify(backup, null, 2);
   };
 
-  const importDatabaseSnapshot = async (jsonData: string): Promise<{ success: boolean; message: string; recordCounts?: Record<string, number> }> => {
+  const importDatabaseSnapshot = async (jsonData: string): Promise<{ success: boolean; message: string; recordCounts?: Record<string, number>; cloudOk?: boolean; verified?: boolean; written?: number; failedKeys?: string[]; details?: string[] }> => {
     try {
       markLocalMutation();
       const parsed = JSON.parse(jsonData);
@@ -8596,8 +8597,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
 
-      // 5. Explicitly prepare complete snapshot for pushAllDataToSupabase ensuring students are attached
-      const payloadToSync: Record<string, unknown> = {
+      // 5. Durable restore: one transactional RPC when available, otherwise chunked
+      //    put_states batches - then read the rows back and verify the counts.
+      //    Nothing is reported as success unless Supabase actually stored it.
+      const restoreSnapshot: Record<string, unknown> = {
         ...(parsed as Record<string, unknown>),
         students: finalStudentsToSync,
         subjects: finalSubjectsToSync,
@@ -8605,45 +8608,56 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deletedAccountIds: updatedDeletedArr,
       };
 
-      // 6. Push directly and await Supabase response
-      const supabaseSyncResult = await pushAllDataToSupabase(payloadToSync);
-
-      // 7. Sync with Express server if online
-      try {
-        await fetch('/api/students/replace-all', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            students: finalStudentsToSync,
-            subjects: finalSubjectsToSync,
-            assessmentConfig: finalConfigToSync,
-            parents: Array.isArray(parsed.parents) ? parsed.parents : parents,
-            deletedAccountIds: updatedDeletedArr,
-          }),
-        }).catch(() => {});
-      } catch {}
-
-      try {
-        await forceSyncCollatedResultsToDatabase({
+      const serverSync = await fetch('/api/students/replace-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           students: finalStudentsToSync,
-          assessmentConfig: finalConfigToSync,
           subjects: finalSubjectsToSync,
+          assessmentConfig: finalConfigToSync,
           parents: Array.isArray(parsed.parents) ? parsed.parents : parents,
           deletedAccountIds: updatedDeletedArr,
-          gradingSystem: Array.isArray(parsed.gradingSystem) ? parsed.gradingSystem : gradingSystem,
-          officialSignatures,
-          adminPassword,
-        });
-      } catch {}
+        }),
+      }).then(r => r.ok).catch(() => false);
 
-      const syncNote = supabaseSyncResult.ok
-        ? ` All ${finalStudentsToSync.length} scholars & credentials synchronized to Supabase Cloud.`
-        : ` Saved locally and cached. (Cloud status: ${supabaseSyncResult.message})`;
+      const restoreOutcome = await persistRestoreToSupabase(restoreSnapshot, (stage) => {
+        try {
+          window.dispatchEvent(new CustomEvent('stanbax-restore-progress', { detail: stage }));
+        } catch {}
+      });
+
+      // 6. Only settle the secondary collation sync once the primary data is durable
+      if (restoreOutcome.ok) {
+        try {
+          await forceSyncCollatedResultsToDatabase({
+            students: finalStudentsToSync,
+            assessmentConfig: finalConfigToSync,
+            subjects: finalSubjectsToSync,
+            parents: Array.isArray(parsed.parents) ? parsed.parents : parents,
+            deletedAccountIds: updatedDeletedArr,
+            gradingSystem: Array.isArray(parsed.gradingSystem) ? parsed.gradingSystem : gradingSystem,
+            officialSignatures,
+            adminPassword,
+          });
+        } catch {}
+      }
+
+      const scholarCount = finalStudentsToSync.length;
+      const restoreMessage = restoreOutcome.ok
+        ? `Restore complete and verified in Supabase: ${scholarCount} scholars, ${finalSubjectsToSync.length} subjects and ${restoreOutcome.written} collections now match your backup.`
+        : `Restored ${scholarCount} scholars into this browser, but the Supabase copy failed verification. ${restoreOutcome.message}${
+            serverSync ? '' : ' (Local server sync also unavailable.)'
+          }`;
 
       return {
-        success: true,
-        message: `School migration package restored! ${finalStudentsToSync.length} scholars and ${finalSubjectsToSync.length} subjects restored successfully.${syncNote}`,
-        recordCounts: counts
+        success: restoreOutcome.ok,
+        cloudOk: restoreOutcome.cloudOk,
+        verified: restoreOutcome.verified,
+        written: restoreOutcome.written,
+        failedKeys: restoreOutcome.failedKeys,
+        details: restoreOutcome.errors,
+        message: restoreMessage,
+        recordCounts: counts,
       };
     } catch (err: any) {
       return { success: false, message: `Failed to import database: ${err?.message || 'Invalid JSON file'}` };
