@@ -695,9 +695,113 @@
         });
         main.append(button);
       };
+      const identifierMapButtonId = "stanbax-admin-identifier-map";
+      const identifierMapRows = () => ([
+        ["SECTION: TABLE", "COLUMN / FIELD", "DATA TYPE", "HOW IT IS STORED", "CONSTRAINTS & NOTES", "WHO CAN READ / WRITE"],
+        ["public.credentials", "id", "BIGINT", "Generated identity number", "Primary key, auto-increment, never changes", "Admin only (table is revoked from all clients)"],
+        ["public.credentials", "identifier", "TEXT", "PLAINTEXT (lowercase login id)", "UNIQUE — e.g. stx/2023/042 or student email; this is the canonical login", "Admin only, via SECURITY DEFINER RPCs"],
+        ["public.credentials", "aliases", "TEXT[]", "PLAINTEXT array", "Other accepted logins: emails, phone numbers, staff IDs, registration numbers, names", "Admin only, via SECURITY DEFINER RPCs"],
+        ["public.credentials", "password_hash", "TEXT", "HASHED (bcrypt via pgcrypto crypt, cost 'bf')", "Raw password is NEVER stored and this column is never returned to any browser", "Admin only — verify_login compares hashes server-side"],
+        ["public.credentials", "role", "TEXT", "PLAINTEXT", "CHECK constraint: admin | proprietress | headmistress | moderator | tutor | student | parent", "Role changes blocked by trg_protect_credentials trigger unless admin session"],
+        ["public.credentials", "ref_id", "TEXT", "PLAINTEXT app id", "Links the login to the portal record (e.g. stu-3, tut-2)", "Admin only, via SECURITY DEFINER RPCs"],
+        ["public.credentials", "must_change_password", "BOOLEAN", "PLAINTEXT flag", "DEFAULT false; set TRUE at student registration — student must set a new password at first sign-in", "Read via get_password_change_status RPC"],
+        ["public.credentials", "password_changed_at", "TIMESTAMPTZ", "PLAINTEXT timestamp", "Set when the student completes the first-login password change", "Admin only"],
+        ["public.credentials", "created_at / updated_at", "TIMESTAMPTZ", "PLAINTEXT timestamps", "Audit of when the credential row was created / last modified", "Admin only"],
+        ["public.user_roles", "user_id", "UUID", "PLAINTEXT", "Bound to auth.users when Supabase Auth is used (NULL otherwise)", "RLS: admins read all; users read only their own row"],
+        ["public.user_roles", "session_ref_id / identifier / role", "TEXT", "PLAINTEXT", "Mirror of the credential identity for role lookups", "RLS: admins read all; users read only their own row"],
+        ["public.sessions", "token", "TEXT", "Opaque session token (plaintext in DB, 12-hour expiry)", "Primary key; issued by verify_login RPC, never displayed in the portal", "No direct client access — REVOKE ALL; only logout_session / status RPCs"],
+        ["public.sessions", "role / ref_id / user_id / expires_at", "TEXT / UUID / TIMESTAMPTZ", "PLAINTEXT", "Identify which account a live session belongs to", "No direct client access — REVOKE ALL"],
+        ["public.school_state (key = 'stanbax_students')", "data -> per-student JSON", "JSONB array", "PLAINTEXT JSON", "Student id, regNumber, name, class, email, parent phone, passport photo (data URL); legacy default password field (stanbax2025) may be synced by older portal code", "Read: public (is_public = true). Write: gated by can_write_state_key — ONLY admin & proprietress; students CANNOT write this key"],
+        ["public.audit_logs", "details", "JSONB", "PLAINTEXT", "STUDENT_CREDENTIAL_REGISTERED events record identifier + ref_id; admin password-change and rename/delete events are also logged here", "RLS SELECT: admin only"],
+        ["NOTE", "—", "—", "—", "Direct table access to credentials, sessions, user_roles and audit_logs is revoked from anon & authenticated. Every read/write flows through SECURITY DEFINER RPCs that validate the session role server-side.", "—"],
+      ]);
+      const downloadIdentifierMapCsv = () => {
+        const rows = identifierMapRows();
+        const csv = rows.map(cells => cells.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+        const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Stanbax_Student_Identifier_Storage_Map_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
+      const installIdentifierMapControl = () => {
+        let button = document.getElementById(identifierMapButtonId);
+        if (!adminCanManageVault() || !credentialsVaultTabActive) {
+          button?.remove();
+          return;
+        }
+        const main = document.querySelector('[data-stanbax-admin-portal="true"] main');
+        if (!main) return;
+        if (button?.isConnected) return;
+        button = document.createElement("button");
+        button.id = identifierMapButtonId;
+        button.type = "button";
+        button.textContent = "Student identifier storage map (spreadsheet)";
+        button.setAttribute("aria-label", "Preview and download a spreadsheet documenting how student identifiers are stored in Supabase");
+        button.title = "Shows every table and column where student identifiers live, whether values are plaintext or hashed, and who can read them";
+        button.style.cssText = "display:block;margin:6px 0 14px;border:1px solid #a5b4fc;border-radius:999px;padding:10px 14px;background:#312e81;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 4px 12px #0f172a22;cursor:pointer;";
+        button.addEventListener("click", () => {
+          const rows = identifierMapRows();
+          let overlay = document.getElementById("stanbax-identifier-map-overlay");
+          if (overlay) overlay.remove();
+          overlay = document.createElement("div");
+          overlay.id = "stanbax-identifier-map-overlay";
+          overlay.style.cssText = "position:fixed;inset:0;z-index:9999;background:#0f172acc;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;";
+          const panel = document.createElement("div");
+          panel.style.cssText = "background:#fff;border-radius:20px;max-width:1080px;width:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px #0f172a66;";
+          const header = document.createElement("div");
+          header.style.cssText = "padding:18px 22px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:12px;";
+          const title = document.createElement("strong");
+          title.textContent = "How student identifiers are saved in Supabase";
+          title.style.cssText = "font:800 16px Nunito,system-ui,sans-serif;color:#1e1b4b;";
+          const closeBtn = document.createElement("button");
+          closeBtn.type = "button";
+          closeBtn.textContent = "Close";
+          closeBtn.style.cssText = "border:1px solid #cbd5e1;border-radius:10px;padding:7px 14px;background:#f8fafc;color:#1e293b;font:700 13px Nunito,system-ui,sans-serif;cursor:pointer;";
+          closeBtn.addEventListener("click", () => overlay.remove());
+          header.append(title, closeBtn);
+          const scroll = document.createElement("div");
+          scroll.style.cssText = "overflow:auto;flex:1;padding:0 22px;";
+          const table = document.createElement("table");
+          table.style.cssText = "width:100%;border-collapse:collapse;font:500 12px/1.5 Nunito,system-ui,sans-serif;color:#0f172a;";
+          rows.forEach((cells, index) => {
+            const tr = document.createElement("tr");
+            cells.forEach(cell => {
+              const el = document.createElement(index === 0 ? "th" : "td");
+              el.textContent = cell;
+              el.style.cssText = `text-align:left;${index === 0
+                ? "position:sticky;top:0;background:#1e1b4b;color:#fff;font-weight:800;padding:9px 10px;border-bottom:2px solid #4338ca;"
+                : "padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top;"}`;
+              tr.append(el);
+            });
+            table.append(tr);
+          });
+          scroll.append(table);
+          const footer = document.createElement("div");
+          footer.style.cssText = "padding:14px 22px;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:flex-end;gap:10px;";
+          const note = document.createElement("span");
+          note.textContent = "Generated from the live Supabase schema (supabase/schema.sql). Passwords are bcrypt-hashed; hashes never leave the database.";
+          note.style.cssText = "margin-right:auto;color:#64748b;font:500 11px Nunito,system-ui,sans-serif;";
+          const downloadBtn = document.createElement("button");
+          downloadBtn.type = "button";
+          downloadBtn.textContent = "Download spreadsheet (.csv — opens in Excel)";
+          downloadBtn.style.cssText = "border:0;border-radius:10px;padding:10px 16px;background:#1e3a8a;color:#fff;font:800 13px Nunito,system-ui,sans-serif;cursor:pointer;";
+          downloadBtn.addEventListener("click", downloadIdentifierMapCsv);
+          footer.append(note, downloadBtn);
+          panel.append(header, scroll, footer);
+          overlay.append(panel);
+          document.body.append(overlay);
+        });
+        main.append(button);
+      };
       const vaultObserver = new MutationObserver(() => {
         attachCredentialsVaultNavigationTracking();
         installRenameCredentialControl();
+        installIdentifierMapControl();
       });
       vaultObserver.observe(document.getElementById("root") || document.body, { childList: true, subtree: true });
       attachCredentialsVaultNavigationTracking();
