@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "node scripts/verify-site.cjs"
+    "build": "node scripts/verify-site.cjs",
+    "test:results": "tsx scripts/test-student-results.ts"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",

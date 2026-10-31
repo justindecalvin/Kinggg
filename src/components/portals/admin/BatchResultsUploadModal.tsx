@@ -339,9 +339,16 @@ export const BatchResultsUploadModal: React.FC<BatchResultsUploadModalProps> = (
         await dispatchCollatedResultsToDashboards(dbClassFilter === 'all' ? 'all' : dbClassFilter);
       }
       setInlineTestEdits({});
-      setInlineSaveBanner(
-        `Saved & published 1st & 2nd Test scores live to portals for ${res.updatedCount} existing scholar(s) without creating duplicates.`
-      );
+      const cloud = res.cloudSync;
+      if (cloud && !cloud.ok) {
+        setInlineSaveBanner(
+          `Test scores saved in this browser only — NOT in Supabase. ${cloud.message}`
+        );
+      } else {
+        setInlineSaveBanner(
+          `Saved 1st & 2nd Test scores for ${res.updatedCount} existing scholar(s); Supabase confirmed ${cloud?.total ?? 0} score row(s) (${cloud?.inserted ?? 0} new, ${cloud?.updated ?? 0} updated).`
+        );
+      }
     } catch (err: any) {
       setInlineSaveBanner(`Could not save test scores: ${err?.message || 'Unexpected error'}`);
     } finally {
@@ -1451,8 +1458,17 @@ SBS/2026/NEW02,Tunde Bakare,SSS 1 Science,${row3}`;
 
       setAuditResult({
         ...result,
-        message: `${result.message}${autoPublishToPortals ? ' Published live to the central database — students have immediate portal access!' : ''}`
+        message: `${result.message}${autoPublishToPortals ? ' Published to portal dashboards.' : ''}`
       });
+
+      // The upload is only "done" when Supabase confirms the rows. Anything
+      // else is reported as an explicit failure, never as a silent success.
+      const cloud = result.cloudSync;
+      if (cloud && !cloud.ok) {
+        setUploadErrorBanner(
+          `Results were processed locally, but Supabase did NOT save them: ${cloud.message}`
+        );
+      }
     } catch (err: any) {
       setUploadErrorBanner(`Batch upload failed: ${err?.message || 'Unexpected error'}`);
     } finally {

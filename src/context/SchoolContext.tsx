@@ -25,6 +25,11 @@ import {
   isSeededDemoGrade,
   stripDemoGradesFromStudent,
 } from '../lib/supabase';
+import {
+  flattenStudentResultRows,
+  remoteUpsertStudentResults,
+  type ResultSyncSummary,
+} from '../lib/studentResults';
 import { persistRestoreToSupabase } from '../lib/backupRestore';
 import { 
   AppImages, 
@@ -418,6 +423,8 @@ interface SchoolContextType {
       subjectsCount: number;
       termAverage: number;
     }>;
+    /** True only when the per-subject rows really landed in Supabase. */
+    cloudSync: ResultSyncSummary;
   }>;
   activeOnlineUsersCount: number;
   deletedAccountIds: string[];
@@ -3804,6 +3811,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       subjectsCount: number;
       termAverage: number;
     }>;
+    cloudSync: ResultSyncSummary;
   }> => {
     if (!Array.isArray(records) || records.length === 0) {
       return {
@@ -3812,7 +3820,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updatedCount: 0,
         provisionedCount: 0,
         message: 'No records provided for upload.',
-        auditLogs: []
+        auditLogs: [],
+        cloudSync: {
+          ok: false, attempted: 0, inserted: 0, updated: 0, skipped: 0, total: 0,
+          problems: [], attempts: 0, message: 'Nothing uploaded.'
+        }
       };
     }
 
@@ -4415,13 +4427,41 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       adminPassword,
     }).catch(err => console.warn('[Batch Upsert Supabase Sync]', err));
 
+    // ---- AUTHORITATIVE COMMIT: per-subject rows into public.student_results ----
+    // The roster blob above is only a cached mirror. This is the write that
+    // actually stores every CA1/CA2/CA3/Exam score as its own queryable row,
+    // upserted on (reg_key, academic_session, term, subject_key) so re-uploading
+    // the same CSV updates scores instead of creating duplicate scholars.
+    const normalizedTerm = String(targetTerm || '').includes('2nd')
+      ? '2nd Term'
+      : String(targetTerm || '').includes('3rd')
+        ? '3rd Term'
+        : '1st Term';
+    const normalizedSession = String(targetSession || assessmentConfig.activeSession || '2026/2027');
+
+    const resultRows = flattenStudentResultRows(uniqueUpdatedStudents, normalizedTerm, normalizedSession);
+
+    const cloudSync = await remoteUpsertStudentResults(
+      resultRows,
+      shouldReplaceEntireRoster ? 'bulk_csv_upload_full_roster' : (isTestsOnly ? 'bulk_csv_upload_tests' : 'bulk_csv_upload')
+    );
+
+    if (!cloudSync.ok) {
+      console.warn('[Batch Upsert] Supabase results sync did NOT complete:', cloudSync.message);
+    }
+
+    const cloudLine = cloudSync.ok
+      ? `Supabase: ${cloudSync.total} score rows saved (${cloudSync.inserted} new, ${cloudSync.updated} updated${cloudSync.skipped ? `, ${cloudSync.skipped} rejected` : ''}).`
+      : `NOT SAVED TO SUPABASE — ${cloudSync.message}`;
+
     return {
       success: true,
       totalProcessed: deduplicatedRecords.length,
       updatedCount,
       provisionedCount,
-      message: `Batch import saved to database: ${updatedCount} existing scholars updated, ${provisionedCount} new scholar accounts provisioned${shouldReplaceEntireRoster ? ` (Roster locked to ${uniqueUpdatedStudents.length} scholars)` : ''}.`,
-      auditLogs
+      message: `Batch import processed: ${updatedCount} existing scholars updated, ${provisionedCount} new scholar accounts provisioned${shouldReplaceEntireRoster ? ` (Roster locked to ${uniqueUpdatedStudents.length} scholars)` : ''}. ${cloudLine}`,
+      auditLogs,
+      cloudSync
     };
   };
 
