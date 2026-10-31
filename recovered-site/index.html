@@ -611,6 +611,101 @@
       installAdminAllPasswordChangeControl();
       applySummaryPreferences();
 
+      const renameCredentialControlId = "stanbax-admin-rename-credential";
+      let credentialsVaultTabActive = false;
+      const adminCanManageVault = () => Boolean(
+        document.querySelector('[data-stanbax-admin-portal="true"]') &&
+        (localStorage.getItem("stanbax_admin_auth") === "true" || sessionStorage.getItem("stanbax_admin_auth") === "true")
+      );
+      const attachCredentialsVaultNavigationTracking = () => {
+        const portal = document.querySelector('[data-stanbax-admin-portal="true"]');
+        if (!portal || portal.dataset.stanbaxVaultNavTracking === "true") return;
+        portal.dataset.stanbaxVaultNavTracking = "true";
+        portal.addEventListener("click", event => {
+          const target = event.target instanceof Element ? event.target.closest("button") : null;
+          if (!target) return;
+          const label = (target.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+          if (label.includes("credentials vault")) {
+            credentialsVaultTabActive = true;
+            requestAnimationFrame(() => installRenameCredentialControl());
+          } else if (label.includes("school settings & signatures")) {
+            credentialsVaultTabActive = false;
+          }
+        }, true);
+      };
+      const installRenameCredentialControl = () => {
+        let button = document.getElementById(renameCredentialControlId);
+        if (!adminCanManageVault() || !credentialsVaultTabActive) {
+          button?.remove();
+          return;
+        }
+        const portal = document.querySelector('[data-stanbax-admin-portal="true"]');
+        const main = portal?.querySelector("main");
+        if (!main) return;
+        if (button?.isConnected) return;
+        button = document.createElement("button");
+        button.id = renameCredentialControlId;
+        button.type = "button";
+        button.textContent = "Rename credential logins";
+        button.setAttribute("aria-label", "Rename a credential login identifier and its accepted aliases in Supabase");
+        button.title = "Change the login identifier and accepted names of any credential in the school database";
+        button.style.cssText = "display:block;margin:14px 0 6px;border:1px solid #fbbf24;border-radius:999px;padding:10px 14px;background:#1e3a8a;color:#fff;font:800 13px Nunito,system-ui,sans-serif;box-shadow:0 4px 12px #0f172a22;cursor:pointer;";
+        button.addEventListener("click", async () => {
+          const identifier = window.prompt("Current login identifier (or staff ID / ref) of the credential to rename:");
+          const cleanIdentifier = identifier?.trim();
+          if (!cleanIdentifier) return;
+          const newIdentifier = window.prompt("New login identifier (leave empty to keep the current one):")?.trim() || "";
+          const aliasesRaw = window.prompt("Replacement accepted names, comma-separated (leave empty to keep current aliases):")?.trim() || "";
+          if (!newIdentifier && !aliasesRaw) {
+            window.alert("Nothing to change: enter a new login identifier and/or aliases.");
+            return;
+          }
+          const token = localStorage.getItem("stanbax_db_session") || sessionStorage.getItem("stanbax_db_session");
+          if (!url || !anonKey || !token) {
+            window.alert("A Supabase admin session is required. Sign out and back into the Admin Portal, then try again.");
+            return;
+          }
+          button.disabled = true;
+          button.textContent = "Saving to Supabase…";
+          try {
+            const response = await fetch(`${url}/rest/v1/rpc/rename_credential`, {
+              method: "POST",
+              headers: authHeaders(token),
+              body: JSON.stringify({
+                p_identifier: cleanIdentifier,
+                p_new_identifier: newIdentifier || null,
+                p_new_aliases: aliasesRaw ? aliasesRaw.split(",").map(a => a.trim().toLowerCase()).filter(Boolean) : null,
+                p_ref_id: null,
+              }),
+              cache: "no-store",
+              signal: AbortSignal.timeout(12000),
+            });
+            const result = await response.json().catch(() => null);
+            if (!response.ok || result?.ok !== true) {
+              throw new Error(result?.message || `Supabase request failed (HTTP ${response.status}).`);
+            }
+            await refreshSharedState();
+            window.alert(result.message || "Credential updated in the school database. New logins take effect immediately.");
+          } catch (error) {
+            window.alert(`Could not update Supabase: ${error?.message || "Connection failed."}\nRun credential_identity_management.sql in the Supabase SQL Editor if this RPC is not installed.`);
+          } finally {
+            button.disabled = false;
+            button.textContent = "Rename credential logins";
+          }
+        });
+        main.append(button);
+      };
+      const vaultObserver = new MutationObserver(() => {
+        attachCredentialsVaultNavigationTracking();
+        installRenameCredentialControl();
+      });
+      vaultObserver.observe(document.getElementById("root") || document.body, { childList: true, subtree: true });
+      attachCredentialsVaultNavigationTracking();
+      installRenameCredentialControl();
+      window.addEventListener("storage", event => {
+        if (event.key === "stanbax_admin_auth") installRenameCredentialControl();
+      });
+
       const refreshSharedState = async () => {
         if (!url || !anonKey) return;
         try {

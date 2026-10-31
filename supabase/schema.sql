@@ -1583,9 +1583,9 @@ ON CONFLICT (key) DO UPDATE SET is_public = EXCLUDED.is_public;
 
 INSERT INTO public.credentials (identifier, aliases, password_hash, role, ref_id) VALUES
   ('admin',        ARRAY['administrator','principal','stanbax','admin@stanbaxschools.edu.ng'], crypt('Justin2000.', gen_salt('bf')), 'admin', 'admin'),
-  ('proprietress', ARRAY['mrs.bello','proprietress@stanbaxschools.edu.ng','adebisi.bello'],     crypt('Proprietress2025!', gen_salt('bf')), 'proprietress', 'proprietress'),
-  ('headmistress', ARRAY['head_mistress','hm@stanbaxschools.edu.ng','headmistress@stanbaxschools.edu.ng','mrs.adediran'], crypt('Headmistress2025!', gen_salt('bf')), 'headmistress', 'headmistress'),
-  ('moderator',    ARRAY['mod','moderator@stanbaxschools.edu.ng','chatmod','kehinde.badmus'],                             crypt('Moderator2025!', gen_salt('bf')),    'moderator',    'mod-1'),
+  ('proprietress', ARRAY['proprietress@stanbaxschools.edu.ng'],     crypt('Proprietress2025!', gen_salt('bf')), 'proprietress', 'proprietress'),
+  ('headmistress', ARRAY['head_mistress','hm','hm@stanbaxschools.edu.ng','headmistress@stanbaxschools.edu.ng'], crypt('Headmistress2025!', gen_salt('bf')), 'headmistress', 'headmistress'),
+  ('moderator',    ARRAY['mod','moderator@stanbaxschools.edu.ng','chatmod'],                             crypt('Moderator2025!', gen_salt('bf')),    'moderator',    'mod-1'),
 
   ('olumide.ogunleye@stanbaxschools.edu.ng',  ARRAY['stx/fac/001','tut-1','mr. olumide ogunleye'],   crypt('stanbax2025', gen_salt('bf')), 'tutor', 'tut-1'),
   ('folake.adeyemi@stanbaxschools.edu.ng',    ARRAY['stx/fac/002','tut-2','mrs. folake adeyemi'],    crypt('stanbax2025', gen_salt('bf')), 'tutor', 'tut-2'),
