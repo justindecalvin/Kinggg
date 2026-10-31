@@ -195,7 +195,7 @@ BEGIN
 
     v_aliases := ARRAY(
       SELECT DISTINCT lower(x)
-      FROM unnest(jsonb_build_array(
+      FROM jsonb_array_elements_text(jsonb_build_array(
         v_person->>'regNumber', v_person->>'staffId', v_person->>'email',
         v_person->>'phone', v_person->>'name', v_ref_id
       )) AS t(x)
