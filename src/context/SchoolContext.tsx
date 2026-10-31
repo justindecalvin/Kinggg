@@ -945,6 +945,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } catch (err) {
         console.warn('Storage quota exceeded or error storing image', err);
       }
+      void syncStateOnline('stanbax_app_images', updated);
+      broadcastLocalStateChange('stanbax_app_images', updated);
       return updated;
     });
   };
@@ -954,6 +956,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       localStorage.removeItem('stanbax_app_images');
     } catch {}
+    void syncStateOnline('stanbax_app_images', DEFAULT_IMAGES);
+    broadcastLocalStateChange('stanbax_app_images', DEFAULT_IMAGES);
   };
 
   // 2. School Core Info (Address, Phone, WhatsApp, Term, Year)
@@ -5858,7 +5862,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const serverLoginRes = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: cleanId, password: cleanPass })
+        body: JSON.stringify({ identifier: cleanId, password: cleanPass }),
+        signal: AbortSignal.timeout(10_000),
       });
       if (serverLoginRes.ok) {
         const sData = await serverLoginRes.json();

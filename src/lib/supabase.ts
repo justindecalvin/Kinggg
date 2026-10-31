@@ -43,11 +43,27 @@ try {
   sessionToken = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
 } catch { /* ignore */ }
 
+const SUPABASE_REQUEST_TIMEOUT_MS = 15_000;
+
 const authedFetch: typeof fetch = (input, init) => {
-  if (!sessionToken) return fetch(input, init);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SUPABASE_REQUEST_TIMEOUT_MS);
+  const callerSignal = init?.signal;
+  const abortFromCaller = () => controller.abort();
+
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort();
+    else callerSignal.addEventListener('abort', abortFromCaller, { once: true });
+  }
+
   const headers = new Headers(init?.headers);
-  headers.set('x-stanbax-session', sessionToken);
-  return fetch(input, { ...init, headers });
+  if (sessionToken) headers.set('x-stanbax-session', sessionToken);
+
+  return fetch(input, { ...init, headers, signal: controller.signal })
+    .finally(() => {
+      clearTimeout(timeoutId);
+      callerSignal?.removeEventListener('abort', abortFromCaller);
+    });
 };
 
 const createClientInstance = (): SupabaseClient | null => {
@@ -1950,5 +1966,4 @@ export const forceSyncCollatedResultsToDatabase = async (payload: {
     };
   }
 };
-
 
