@@ -11,8 +11,11 @@ export const getSupabaseConfig = (): {
   isConfigured: boolean;
   source: 'env' | 'localStorage' | 'none';
 } => {
-  let envUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
-  let envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
+  // `import.meta.env` only exists under Vite. Guard it so the same module can
+  // also be imported by Node test runners and server-side scripts.
+  const viteEnv = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
+  let envUrl = (viteEnv.VITE_SUPABASE_URL as string | undefined)?.trim();
+  let envKey = (viteEnv.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
 
   if (envUrl) envUrl = envUrl.replace(/\/+$/, '');
 
