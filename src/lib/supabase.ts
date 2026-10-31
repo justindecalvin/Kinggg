@@ -857,26 +857,9 @@ const flushWrites = async () => {
     await ensureAdminRemoteSession();
   }
 
-  // If still no authenticated sessionToken (e.g., anonymous parent on landing page),
-  // sync visitor conversations via the public SECURITY DEFINER RPC submit_contact_inquiry
+  // Guest visitor chat is persisted by the token-protected realtime bridge.
   if (!sessionToken) {
-    const visitorConvRaw = pendingWrites.get('stanbax_visitor_conversations');
     pendingWrites.clear();
-    if (visitorConvRaw) {
-      try {
-        const parsedConvs = JSON.parse(visitorConvRaw);
-        if (Array.isArray(parsedConvs) && parsedConvs.length > 0) {
-          await supabase.rpc('submit_contact_inquiry', {
-            p_inquiry: {
-              id: `vsync-${Date.now()}`,
-              __type: 'VISITOR_CHAT_SYNC',
-              conversations: parsedConvs,
-              updatedAt: new Date().toISOString(),
-            },
-          });
-        }
-      } catch {}
-    }
     return;
   }
 
@@ -1937,6 +1920,5 @@ export const forceSyncCollatedResultsToDatabase = async (payload: {
     };
   }
 };
-
 
 

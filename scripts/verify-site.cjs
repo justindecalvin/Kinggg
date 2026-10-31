@@ -12,6 +12,8 @@ const adminPasswordTriggerSql = fs.readFileSync(path.resolve(__dirname, '../supa
 const mainSchemaSql = fs.readFileSync(path.resolve(__dirname, '../supabase/schema.sql'), 'utf8');
 const landingSyncSql = fs.readFileSync(path.resolve(__dirname, '../supabase/landing_page_sync.sql'), 'utf8');
 const subjectCatalogSql = fs.readFileSync(path.resolve(__dirname, '../supabase/subjects_catalog_sync.sql'), 'utf8');
+const chatRealtimeSql = fs.readFileSync(path.resolve(__dirname, '../supabase/chat_realtime_sync.sql'), 'utf8');
+const chatRealtimeBridge = fs.readFileSync(path.join(site, 'assets/chat-realtime-bridge.js'), 'utf8');
 assert(html.includes('id="root"'), 'The archived application entry point is missing.');
 assert(!html.includes('/src/main.tsx'), 'The entry point must reference compiled JavaScript.');
 assert(!html.includes('bulk-results-import.html') && !html.includes('Bulk Results Import'), 'The public homepage must not expose the bulk-results importer.');
@@ -19,6 +21,14 @@ const appScript = html.match(/import\(["'](\/[^"']+\.js)["']\)/)?.[1]
   || html.match(/src=["'](\/[^"']+\.js)["']/)?.[1];
 assert(appScript, 'The compiled application script is missing.');
 assert(html.includes('fetch("/api/config"') && html.includes('/rest/v1/school_state?select=key,data'), 'Shared Supabase config and state must load before the app bundle.');
+assert(html.includes('/assets/chat-realtime-bridge.js'), 'The deployed app must load the Supabase chat realtime bridge.');
+for (const feature of ['postgres_changes', 'stanbax-public-chat-live', 'submit_public_visitor_chat_message', 'merge_authenticated_visitor_conversations', 'sync_chat_typing_status', 'sync_chat_read_receipt', 'stanbax_visitor_chat_access_tokens', 'p_access_token', 'put_states', 'setInterval']) {
+  assert(chatRealtimeBridge.includes(feature), `Supabase chat bridge is missing: ${feature}`);
+}
+for (const feature of ['supabase_realtime', 'school_state_merge_chat_arrays', 'merge_chat_json_array', 'merge_visitor_conversation_arrays', 'submit_public_visitor_chat_message', 'merge_authenticated_visitor_conversations', 'sync_chat_typing_status', 'sync_chat_read_receipt', 'public.valid_session()', 'public.can_write_state_key', 'visitor_chat_credentials', 'digest(v_access_token', 'v_saved_hash <> v_token_hash']) {
+  assert(chatRealtimeSql.includes(feature), `Supabase chat migration is missing: ${feature}`);
+}
+assert(!chatRealtimeBridge.includes('service_role') && !chatRealtimeSql.includes('service_role'), 'Chat synchronization must not expose or require a service-role key.');
 assert(html.includes('window.setInterval(refreshSharedState, 15000)') && html.includes('new StorageEvent("storage"'), 'Open browsers must periodically receive remote state changes.');
 assert(configFunction.includes('env.SUPABASE_URL') && configFunction.includes('env.SUPABASE_ANON_KEY'), 'The Pages config Function must provide the shared Supabase connection.');
 assert(!html.includes('Customize summary cards') && !html.includes('stanbax_student_summary_display_v1'), 'Browser-local student customization must be removed.');
@@ -66,6 +76,8 @@ for (const feature of ['public.valid_session()', "v_actor_role <> 'admin'", "WHE
 }
 assert(mainSchemaSql.includes('admin_require_all_students_password_change'), 'Fresh Supabase schema installs must include the all-students password-change RPC.');
 const appBundle = fs.readFileSync(path.resolve(site, appScript.slice(1)), 'utf8');
+assert(appBundle.includes('stanbax_parent_consultations') && appBundle.includes('stanbax_chat_read_timestamps'), 'The deployed app must apply realtime consultation and read-receipt updates to React state.');
+assert(!appBundle.includes('vsync-'), 'The deployed guest chat must not upload whole visitor conversations through the legacy inquiry RPC.');
 assert(appBundle.includes('data-stanbax-admin-portal'), 'The deployed Admin Portal must expose the marker used by the summary-control gate.');
 assert(appBundle.includes('Bulk Results Import / Fast Score Entry'), 'The admin portal results importer entry is missing.');
 assert(appBundle.includes('h(`enter_edit_grades`)||h(`collate_publish_results`)'), 'The importer must be visible to admins authorized to edit or publish results.');

@@ -2,8 +2,14 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { installLocalStorageSync } from './lib/supabase';
+import { getSupabaseConfig, installLocalStorageSync } from './lib/supabase';
+import './chatRealtimeBridge';
 
+const supabaseConfig = getSupabaseConfig();
+if (supabaseConfig.isConfigured) {
+  localStorage.setItem('stanbax_supabase_url', supabaseConfig.url);
+  localStorage.setItem('stanbax_supabase_anon_key', supabaseConfig.key);
+}
 installLocalStorageSync();
 
 interface ErrorBoundaryProps {

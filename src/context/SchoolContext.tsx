@@ -11967,6 +11967,18 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (Array.isArray(parsed)) setChatMessages(parsed);
         } catch {}
       }
+      if (e.key === 'stanbax_parent_consultations' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setConsultationRequests(parsed);
+        } catch {}
+      }
+      if (e.key === 'stanbax_chat_read_timestamps' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && typeof parsed === 'object') setLastReadTimestamps(parsed);
+        } catch {}
+      }
       if (e.key === 'stanbax_assessment_config' && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
@@ -11991,6 +12003,12 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setChatChannels(data);
       } else if (key === 'stanbax_chat_messages' && Array.isArray(data)) {
         setChatMessages(data);
+      } else if (key === 'stanbax_chat_typing' && data && typeof data === 'object') {
+        setTypingMap(data);
+      } else if (key === 'stanbax_parent_consultations' && Array.isArray(data)) {
+        setConsultationRequests(data);
+      } else if (key === 'stanbax_chat_read_timestamps' && data && typeof data === 'object') {
+        setLastReadTimestamps(data);
       } else if (key === 'stanbax_tutors' && Array.isArray(data)) {
         setTutors(data);
       } else if (key === 'stanbax_moderators' && Array.isArray(data)) {
