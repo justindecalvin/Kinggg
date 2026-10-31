@@ -545,6 +545,20 @@ export const normalizeRegForUpsert = (reg: unknown): string => {
   return padded.replace(/[^a-z0-9]/g, '');
 };
 
+/** Login aliases for names such as “Mark Tinu Angel”. */
+export const buildStudentLoginAliases = (...values: unknown[]): string[] => {
+  const aliases = new Set<string>();
+  values.forEach(value => {
+    const words = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').split(' ').filter(Boolean);
+    if (words.length < 2) return;
+    aliases.add(words.join(' '));
+    for (let i = 0; i < words.length; i += 1) {
+      for (let j = i + 1; j < words.length; j += 1) aliases.add(`${words[i]} ${words[j]}`);
+    }
+  });
+  return Array.from(aliases);
+};
+
 export let lastLocalMutationAt = 0;
 export const markLocalMutation = (): void => {
   lastLocalMutationAt = Date.now();
@@ -1966,4 +1980,3 @@ export const forceSyncCollatedResultsToDatabase = async (payload: {
     };
   }
 };
-

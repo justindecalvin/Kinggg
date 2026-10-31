@@ -47,6 +47,9 @@ DECLARE
   v_pass     TEXT;
   v_ref_id   TEXT;
   v_aliases  TEXT[];
+  v_name_parts TEXT[];
+  v_i        INT;
+  v_j        INT;
   v_created  INT := 0;
   v_preserved INT := 0;
   v_write    JSONB;
@@ -201,6 +204,19 @@ BEGIN
       )) AS t(x)
       WHERE x IS NOT NULL AND trim(x) <> ''
     );
+
+    -- Accept the full name and every two-name combination, e.g. a student
+    -- named “Mark Tinu Angel” can use “Mark Tinu” or “Mark Angel”.
+    v_name_parts := regexp_split_to_array(lower(trim(COALESCE(v_person->>'name', ''))), '\s+');
+    IF array_length(v_name_parts, 1) >= 2 THEN
+      FOR v_i IN 1..array_length(v_name_parts, 1) LOOP
+        FOR v_j IN (v_i + 1)..array_length(v_name_parts, 1) LOOP
+          v_aliases := array_append(v_aliases, v_name_parts[v_i] || ' ' || v_name_parts[v_j]);
+        END LOOP;
+      END LOOP;
+      SELECT ARRAY(SELECT DISTINCT lower(trim(x)) FROM unnest(v_aliases) AS t(x) WHERE trim(x) <> '')
+        INTO v_aliases;
+    END IF;
 
     IF EXISTS (SELECT 1 FROM public.credentials c WHERE c.ref_id = v_ref_id) THEN
       -- Keep the working password, only refresh the alias map.

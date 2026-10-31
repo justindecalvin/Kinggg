@@ -18,6 +18,7 @@ import {
   pushAllDataToSupabase,
   deduplicateStudentsByRegistration,
   normalizeRegForUpsert,
+  buildStudentLoginAliases,
   lastLocalMutationAt,
   markLocalMutation,
   hasPendingRemoteWrites,
@@ -30,7 +31,7 @@ import {
   remoteUpsertStudentResults,
   type ResultSyncSummary,
 } from '../lib/studentResults';
-import { persistRestoreToSupabase } from '../lib/backupRestore';
+import { parseBackupJson, persistRestoreToSupabase } from '../lib/backupRestore';
 import { 
   AppImages, 
   Notice, 
@@ -2964,7 +2965,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           stu.password || 'stanbax2025',
           'student',
           stu.id,
-          [stu.email || '', stu.name?.toLowerCase().trim() || ''].filter(Boolean)
+          [stu.email || '', ...buildStudentLoginAliases(stu.name)].filter(Boolean)
         );
       }
     }
@@ -3094,7 +3095,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       newStudent.password || 'stanbax2025',
       'student',
       newStudent.id,
-      [newStudent.email, newStudent.name.toLowerCase()].filter((x): x is string => Boolean(x))
+      [newStudent.email, ...buildStudentLoginAliases(newStudent.name)].filter((x): x is string => Boolean(x))
     );
 
     void syncStateOnline('stanbax_students', [newStudent, ...students]);
@@ -8536,10 +8537,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const importDatabaseSnapshot = async (jsonData: string): Promise<{ success: boolean; message: string; recordCounts?: Record<string, number>; cloudOk?: boolean; verified?: boolean; written?: number; failedKeys?: string[]; details?: string[] }> => {
     try {
       markLocalMutation();
-      const parsed = JSON.parse(jsonData);
-      if (!parsed || typeof parsed !== 'object') {
-        return { success: false, message: 'Invalid backup file format.' };
-      }
+      const parsedResult = parseBackupJson(jsonData);
+      if (!parsedResult.ok) return { success: false, message: parsedResult.error || 'Invalid backup file format.' };
+      const parsed = parsedResult.snapshot;
       const counts: Record<string, number> = {};
 
       // 1. Process deletedAccountIds from backup first if present
@@ -8635,7 +8635,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 s.password || 'stanbax2025',
                 'student',
                 s.id,
-                [s.email || '', s.name?.toLowerCase() || ''].filter(Boolean)
+                [s.email || '', ...buildStudentLoginAliases(s.name)].filter(Boolean)
               ).catch(() => {})
             )
           );

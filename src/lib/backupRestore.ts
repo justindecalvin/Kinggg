@@ -31,6 +31,79 @@ export const RESTORE_REPORT_KEY = 'stanbax_last_restore_report_v1';
 export const PLACEHOLDER_PASSWORD_PATTERN = /^\s*\[.*\]\s*$/;
 export const TEMP_STUDENT_PASSWORD = 'Stanbax2026!';
 
+const STORAGE_KEY_TO_FIELD: Record<string, string> = {
+  stanbax_school_info: 'schoolInfo',
+  stanbax_app_images: 'images',
+  stanbax_classes: 'classes',
+  stanbax_subjects: 'subjects',
+  stanbax_grading_system: 'gradingSystem',
+  stanbax_tutors: 'tutors',
+  stanbax_students: 'students',
+  stanbax_parents_list: 'parents',
+  stanbax_homeworks: 'homeworks',
+  stanbax_notices: 'notices',
+  stanbax_applications: 'applications',
+  stanbax_entrance_exam_settings: 'entranceExamSettings',
+  stanbax_broadcast_logs: 'broadcastLogs',
+  stanbax_inquiries: 'inquiries',
+  stanbax_lesson_notes: 'lessonNotes',
+  stanbax_notes_enabled: 'notesFeatureEnabled',
+  stanbax_assessment_config: 'assessmentConfig',
+  stanbax_term_resumption_config: 'termResumptionConfig',
+  stanbax_attendance_records: 'attendanceRecords',
+  stanbax_cbt_exams: 'cbtExams',
+  stanbax_cbt_attempts: 'cbtAttempts',
+  stanbax_weekly_timetables: 'timetables',
+  stanbax_sickbay_logs: 'sickBayLogs',
+  stanbax_parent_consultations: 'consultationRequests',
+  stanbax_fee_payments: 'feePayments',
+  stanbax_calvin_tokens: 'calvinTokens',
+  stanbax_library_books: 'libraryBooks',
+  stanbax_proprietress_profile: 'proprietressProfile',
+  stanbax_proprietress_appointments: 'appointments',
+  stanbax_proprietress_messages: 'messagesToProprietress',
+  stanbax_proprietress_directives: 'directives',
+  stanbax_faculty_members: 'facultyList',
+  stanbax_hero_slides: 'heroSlides',
+  stanbax_hero_highlights: 'heroHighlights',
+  stanbax_key_pillars: 'keyPillars',
+  stanbax_key_pillars_header: 'keyPillarsHeader',
+  stanbax_about_content: 'aboutContent',
+  stanbax_academic_programs: 'academicPrograms',
+  stanbax_featured_courses: 'featuredCourses',
+  stanbax_clubs_list: 'clubsList',
+  stanbax_house_standings: 'houseStandings',
+  stanbax_bus_routes: 'busRoutes',
+  stanbax_meal_menu: 'mealMenu',
+  stanbax_calendar_events: 'calendarEvents',
+  stanbax_testimonials: 'testimonials',
+  stanbax_testimonials_header: 'testimonialsHeader',
+  stanbax_faq_items: 'faqs',
+  stanbax_faq_header: 'faqHeader',
+  stanbax_admin_password: 'adminPassword',
+  stanbax_proprietress_password: 'proprietressPassword',
+  stanbax_admin_security_q: 'adminSecurityQuestion',
+  stanbax_admin_security_a: 'adminSecurityAnswer',
+  stanbax_school_rep_config: 'schoolRepConfig',
+  stanbax_visitor_conversations: 'visitorConversations',
+  stanbax_landing_sections: 'landingSections',
+  stanbax_deleted_account_ids: 'deletedAccountIds',
+};
+
+/** Accept both the app's flat export and a direct school_state row backup. */
+const normalizeBackupPayload = (input: Record<string, unknown>): Record<string, unknown> => {
+  const rows = Array.isArray(input.rows) ? input.rows : null;
+  if (!rows) return input;
+  const snapshot: Record<string, unknown> = {};
+  rows.forEach((row: any) => {
+    if (!row || typeof row.key !== 'string' || row.data === undefined || row.data === null) return;
+    snapshot[STORAGE_KEY_TO_FIELD[row.key] || row.key] = row.data;
+  });
+  if (input.backedUpAt) snapshot.exportedAt = input.backedUpAt;
+  if (input.schoolName) snapshot.schoolName = input.schoolName;
+  return snapshot;
+};
+
 const GUARD_TTL_MS = 30 * 60 * 1000;
 const HEAVY_KEYS = ['stanbax_app_images', 'stanbax_gallery_photos', 'stanbax_campus_gallery_photos'];
 
@@ -125,7 +198,7 @@ export const parseBackupJson = (rawText: string): ParsedBackup => {
     return { ...empty, error: 'Unrecognised backup format: expected a JSON object at the top level.' };
   }
 
-  const snapshot = parsed as Record<string, unknown>;
+  const snapshot = normalizeBackupPayload(parsed as Record<string, unknown>);
   const recognized: string[] = [];
   const unknown: string[] = [];
   const counts: Record<string, number> = {};
